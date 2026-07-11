@@ -133,3 +133,108 @@ Vercel detecta el cambio automáticamente y actualiza la página en 1-2 minutos,
 - **Seguridad**: por ahora, cualquiera que tenga el link puede ver y editar los datos (no hay login todavía) — mismo nivel de apertura que tenía la versión anterior. Si más adelante quieres pedir usuario y contraseña para entrar, se puede agregar.
 - **Costo**: Supabase y Vercel son gratis hasta miles de registros y visitas mensuales — de sobra para una empresa de ropa con varias tiendas.
 - Si algo no carga en Vercel, revisa primero que las Environment Variables estén bien escritas (mismo nombre exacto, sin espacios).
+
+
+# Actualización v2 — Guía paso a paso
+
+Ya tienes el proyecto funcionando. Esta actualización agrega: departamento/distrito
+desplegables, DNI en la tabla, se quitó "última compra", el dashboard de cumpleaños
+ahora solo muestra hoy/7 días con tareas marcables, exportar a Excel, y el sistema
+de **login por tienda** (para que ninguna tienda vea los clientes de otra).
+
+Sigue el orden exacto.
+
+---
+
+## Parte 1 — Correr la migración de base de datos
+
+1. Entra a tu proyecto en supabase.com → **SQL Editor** → **New query**.
+2. Abre el archivo `supabase-migracion-v2.sql` (está en esta carpeta), copia todo, pégalo y dale **Run**.
+3. Debería decir "Success". Esto agrega las columnas nuevas, la tabla `perfiles`, y activa las reglas de seguridad (RLS) que separan a las tiendas entre sí.
+
+⚠️ A partir de este punto, **nadie puede leer ni escribir en `clientes` sin haber iniciado sesión** — ni siquiera con la clave pública. Por eso el siguiente paso es obligatorio antes de seguir usando el sistema.
+
+---
+
+## Parte 2 — Crear las 6 cuentas de acceso (5 tiendas + 1 administrador)
+
+### 2.1 — Crear los usuarios
+
+En Supabase, ve a **Authentication** (ícono de personas) → **Users** → **Add user** → **Create new user**.
+
+Crea 6 usuarios (correo + contraseña, marca "Auto Confirm User" para que no pida verificación por correo):
+
+| Correo (ejemplo) | Contraseña |
+|---|---|
+| tienda1@tuempresa.com | (la que tú definas) |
+| tienda2@tuempresa.com | ... |
+| tienda3@tuempresa.com | ... |
+| tienda4@tuempresa.com | ... |
+| tienda5@tuempresa.com | ... |
+| admin@tuempresa.com | ... |
+
+Después de crear cada uno, **copia su UUID** (aparece en la lista de usuarios, es un código largo tipo `a1b2c3d4-...`). Vas a necesitar los 6.
+
+### 2.2 — Asignarles su rol y tienda
+
+Ve a **SQL Editor** → **New query**, y corre esto reemplazando cada UUID por el que copiaste (uno por fila):
+
+```sql
+insert into perfiles (id, rol, tienda, nombre) values
+  ('UUID_TIENDA_1', 'tienda', 'Tienda 1', 'Encargada Tienda 1'),
+  ('UUID_TIENDA_2', 'tienda', 'Tienda 2', 'Encargada Tienda 2'),
+  ('UUID_TIENDA_3', 'tienda', 'Tienda 3', 'Encargada Tienda 3'),
+  ('UUID_TIENDA_4', 'tienda', 'Tienda 4', 'Encargada Tienda 4'),
+  ('UUID_TIENDA_5', 'tienda', 'Tienda 5', 'Encargada Tienda 5'),
+  ('UUID_ADMIN',    'admin',  null,       'Administrador');
+```
+
+**Importante:** el valor de `tienda` debe escribirse exactamente igual (mismas mayúsculas/espacios) a como aparece en `src/lib/peru-ubigeo.js`, en la lista `TIENDAS`. Si le pones nombres reales a tus tiendas (ej. "Gamarra", "San Isidro"...), edita esa lista en el archivo **y** en este INSERT para que coincidan exactamente.
+
+### 2.3 — Confirmar que quedó bien
+
+En **Table Editor → perfiles** deberías ver tus 6 filas con su rol y tienda correctos.
+
+---
+
+## Parte 3 — Actualizar tu proyecto local
+
+En la terminal, dentro de la carpeta del proyecto:
+
+```
+npm install
+npm run dev
+```
+
+`npm install` va a instalar la librería nueva para exportar a Excel. Abre `localhost:3000` — ahora te debería pedir **correo y contraseña** antes de dejarte entrar. Prueba con una cuenta de tienda y confirma que:
+- Solo ves/registras clientes de esa tienda.
+- El campo "Tienda" del formulario aparece fijo (no editable).
+- En "Cumpleaños" ya no aparece la sección de 30 días, y puedes marcar "Carta enviada" / "Promoción enviada".
+
+Luego cierra sesión y entra con la cuenta `admin` — deberías ver **todos** los clientes de las 5 tiendas, con una columna "Tienda" extra y un filtro para elegir cuál ver.
+
+---
+
+## Parte 4 — Publicar los cambios
+
+Igual que siempre:
+
+```
+git add .
+git commit -m "v2: departamentos, roles por tienda, excel, cumpleanos"
+git push
+```
+
+Vercel lo detecta y republica solo en 1-2 minutos. No necesitas tocar nada en Vercel — las mismas variables de entorno de antes siguen sirviendo.
+
+---
+
+## Cómo funciona la separación entre tiendas (para que entiendas el "por qué")
+
+La protección real **no** es que cada tienda tenga su propia base de datos — siguen compartiendo una sola. Lo que las separa son las reglas de seguridad (RLS) que corriste en la Parte 1:
+
+- Cuando alguien inicia sesión, Supabase sabe quién es.
+- Antes de devolver cualquier dato, Postgres revisa la tabla `perfiles`: si es `admin`, deja pasar todo; si es `tienda`, solo deja pasar (leer, crear, editar, borrar) las filas donde `clientes.tienda` coincide con la suya.
+- Esto se aplica **directamente en la base de datos**, no en el código de la página — así que aunque alguien intente manipular la aplicación, la base de datos igual bloquea lo que no le corresponde ver.
+
+Si el día de mañana quieres agregar una sexta tienda, no hay que tocar código: solo creas un usuario nuevo en Authentication, le agregas su fila en `perfiles`, y le agregas su nombre a la lista `TIENDAS` en `src/lib/peru-ubigeo.js`.

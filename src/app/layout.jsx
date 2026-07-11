@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "CRM Ropa",
+  title: "SFIDA - INVESTOR CRM",
   description: "Clientes y cumpleaños",
 };
 

@@ -31,7 +31,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#F3F1EC] p-6">
       <div className="bg-white p-10 rounded-2xl shadow-md text-center max-w-md w-full">
-        <h1 className="text-3xl font-bold mb-1 text-ink">CRM Empresa de Ropa</h1>
+        <h1 className="text-3xl font-bold mb-1 text-ink">SFIDA - INVESTOR CRM</h1>
         <p className="mb-1 text-gray-500">
           {perfil.rol === "admin" ? "Cuenta administradora — ves todas las tiendas" : `Tienda: ${perfil.tienda}`}
         </p>

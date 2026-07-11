@@ -31,7 +31,7 @@ function LoginForm() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#F3F1EC] p-6">
       <form onSubmit={entrar} className="bg-white p-10 rounded-2xl shadow-md max-w-sm w-full">
-        <h1 className="text-2xl font-bold text-ink mb-1">CRM Ropa</h1>
+        <h1 className="text-2xl font-bold text-ink mb-1">SFIDA - INVESTOR CRM</h1>
         <p className="text-gray-500 text-sm mb-6">Ingresa con tu cuenta de tienda.</p>
 
         <label className="text-xs font-semibold uppercase text-gray-400">Correo</label>
