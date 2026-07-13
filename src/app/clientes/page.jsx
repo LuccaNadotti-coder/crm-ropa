@@ -135,6 +135,8 @@ export default function ClientesPage() {
       Distrito: c.distrito,
       Tienda: c.tienda,
       Asesora: c.asesora,
+      "Carta cumpleaños enviada": c.saludo_cumple_anio === new Date().getFullYear() ? "Sí" : "No",
+      "Tarjeta descuento/catálogo enviada": c.promo_enviada_anio === new Date().getFullYear() ? "Sí" : "No",
       Observaciones: c.observaciones,
     }));
     const hoja = XLSX.utils.json_to_sheet(filas);
