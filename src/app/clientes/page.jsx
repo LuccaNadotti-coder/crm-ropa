@@ -122,23 +122,45 @@ export default function ClientesPage() {
   const exportarExcel = async () => {
     if (filtrados.length === 0) return;
     const XLSX = await import("xlsx");
-    const filas = filtrados.map((c) => ({
-      Nombre: c.nombre,
-      DNI: c.dni_ruc,
-      Telefono: c.telefono,
-      "Fecha nacimiento": c.fecha_nacimiento,
-      Genero: c.genero,
-      "Tipo cliente": c.tipo_cliente,
-      Talla: c.talla,
-      Estilo: c.estilo,
-      Departamento: c.departamento,
-      Distrito: c.distrito,
-      Tienda: c.tienda,
-      Asesora: c.asesora,
-      "Carta cumpleaños enviada": c.saludo_cumple_anio === new Date().getFullYear() ? "Sí" : "No",
-      "Tarjeta descuento/catálogo enviada": c.promo_enviada_anio === new Date().getFullYear() ? "Sí" : "No",
-      Observaciones: c.observaciones,
-    }));
+
+    const anioActual = new Date().getFullYear();
+    const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const { data: envios } = await supabase
+      .from("envios_catalogo")
+      .select("cliente_id, mes, enviado")
+      .eq("anio", anioActual)
+      .in("cliente_id", filtrados.map((c) => c.id));
+
+    const enviosPorCliente = {};
+    (envios || []).forEach((e) => {
+      if (!enviosPorCliente[e.cliente_id]) enviosPorCliente[e.cliente_id] = {};
+      enviosPorCliente[e.cliente_id][e.mes] = e.enviado;
+    });
+
+    const filas = filtrados.map((c) => {
+      const fila = {
+        Nombre: c.nombre,
+        DNI: c.dni_ruc,
+        Telefono: c.telefono,
+        "Fecha nacimiento": c.fecha_nacimiento,
+        Genero: c.genero,
+        "Tipo cliente": c.tipo_cliente,
+        Talla: c.talla,
+        Estilo: c.estilo,
+        Departamento: c.departamento,
+        Distrito: c.distrito,
+        Tienda: c.tienda,
+        Asesora: c.asesora,
+        "Carta cumpleaños enviada": c.saludo_cumple_anio === anioActual ? "Sí" : "No",
+        "Tarjeta invitación/descuento enviada": c.promo_enviada_anio === anioActual ? "Sí" : "No",
+      };
+      MESES.forEach((nombreMes, i) => {
+        fila[`Catálogo ${nombreMes}`] = enviosPorCliente[c.id]?.[i + 1] ? "Sí" : "No";
+      });
+      fila.Observaciones = c.observaciones;
+      return fila;
+    });
+
     const hoja = XLSX.utils.json_to_sheet(filas);
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Clientes");

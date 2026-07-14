@@ -44,6 +44,9 @@ export default function Home() {
           <Link href="/dashboard" className="bg-wine text-white px-5 py-3 rounded-xl font-medium hover:opacity-90">
             Ver cumpleaños
           </Link>
+          <Link href="/catalogos" className="bg-brass text-white px-5 py-3 rounded-xl font-medium hover:opacity-90">
+            Catálogos mensuales
+          </Link>
           <button
             onClick={() => cerrarSesion(router)}
             className="text-sm text-gray-400 mt-2 hover:text-ink"

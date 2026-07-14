@@ -94,7 +94,7 @@ export default function Dashboard() {
               waLink={waLink}
               vacio="Sin cumpleaños esta semana."
               tarea="promo_enviada_anio"
-              tareaLabel="Tarjeta de descuento y catálogo enviada"
+              tareaLabel="Tarjeta de invitación y descuento enviada"
               anioActual={anioActual}
               marcarTarea={marcarTarea}
               mostrarTienda={perfil.rol === "admin"}
