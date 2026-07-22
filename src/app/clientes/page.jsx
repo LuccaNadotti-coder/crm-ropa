@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth-helpers";
 import { PERU, DEPARTAMENTOS, TIENDAS } from "@/lib/peru-ubigeo";
 
+const TALLAS = ["XS", "S", "M", "L", "XL", "2XL", "26", "28", "30", "32", "34"];
+
 const emptyForm = {
   nombre: "",
   dni_ruc: "",
@@ -22,6 +24,9 @@ const emptyForm = {
   asesora: "",
   observaciones: "",
 };
+
+const soloNumeros = (v) => v.replace(/\D/g, "");
+const soloLetras = (v) => v.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑÜ\s]/g, "");
 
 export default function ClientesPage() {
   const router = useRouter();
@@ -59,8 +64,12 @@ export default function ClientesPage() {
   };
 
   const handleChange = (campo, valor) => {
+    let valorFinal = valor;
+    if (campo === "telefono" || campo === "dni_ruc") valorFinal = soloNumeros(valor);
+    if (campo === "nombre" || campo === "asesora") valorFinal = soloLetras(valor);
+
     setForm((f) => {
-      const actualizado = { ...f, [campo]: valor };
+      const actualizado = { ...f, [campo]: valorFinal };
       if (campo === "departamento") actualizado.distrito = "";
       return actualizado;
     });
@@ -80,8 +89,25 @@ export default function ClientesPage() {
     }
 
     setSaving(true);
-    let error;
 
+    const { data: yaExiste, error: errorCheck } = await supabase.rpc("existe_telefono", {
+      telefono_buscar: form.telefono,
+      cliente_id_excluir: editingId || null,
+    });
+
+    if (errorCheck) {
+      setSaving(false);
+      setMsg("No se pudo validar el teléfono: " + errorCheck.message);
+      return;
+    }
+
+    if (yaExiste) {
+      setSaving(false);
+      setMsg("⚠️ Ya existe un cliente registrado con este número de teléfono. No se puede duplicar.");
+      return;
+    }
+
+    let error;
     if (editingId) {
       ({ error } = await supabase.from("clientes").update(form).eq("id", editingId));
     } else {
@@ -116,7 +142,11 @@ export default function ClientesPage() {
   const eliminar = async (c) => {
     if (!confirm(`¿Eliminar a ${c.nombre}? Esta acción no se puede deshacer.`)) return;
     const { error } = await supabase.from("clientes").delete().eq("id", c.id);
-    if (!error) cargarClientes();
+    if (error) {
+      alert("No se pudo eliminar: " + error.message);
+    } else {
+      cargarClientes();
+    }
   };
 
   const exportarExcel = async () => {
@@ -201,13 +231,27 @@ export default function ClientesPage() {
         <form onSubmit={guardar} className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Campo label="Nombre completo *">
-              <input className="input" value={form.nombre} onChange={(e) => handleChange("nombre", e.target.value)} placeholder="María Pérez" />
+              <input className="input" value={form.nombre} onChange={(e) => handleChange("nombre", e.target.value)} placeholder="MARÍA PÉREZ" />
             </Campo>
             <Campo label="DNI / RUC">
-              <input className="input" value={form.dni_ruc} onChange={(e) => handleChange("dni_ruc", e.target.value)} placeholder="12345678" />
+              <input
+                className="input"
+                value={form.dni_ruc}
+                onChange={(e) => handleChange("dni_ruc", e.target.value)}
+                placeholder="12345678"
+                inputMode="numeric"
+                type="tel"
+              />
             </Campo>
             <Campo label="Teléfono (WhatsApp) *">
-              <input className="input" value={form.telefono} onChange={(e) => handleChange("telefono", e.target.value)} placeholder="999 999 999" />
+              <input
+                className="input"
+                value={form.telefono}
+                onChange={(e) => handleChange("telefono", e.target.value)}
+                placeholder="999999999"
+                inputMode="numeric"
+                type="tel"
+              />
             </Campo>
             <Campo label="Fecha de nacimiento *">
               <input type="date" className="input" value={form.fecha_nacimiento} onChange={(e) => handleChange("fecha_nacimiento", e.target.value)} />
@@ -228,7 +272,10 @@ export default function ClientesPage() {
               </select>
             </Campo>
             <Campo label="Talla">
-              <input className="input" value={form.talla} onChange={(e) => handleChange("talla", e.target.value)} placeholder="M, 32..." />
+              <select className="input" value={form.talla} onChange={(e) => handleChange("talla", e.target.value)}>
+                <option value="">Seleccionar</option>
+                {TALLAS.map((t) => <option key={t}>{t}</option>)}
+              </select>
             </Campo>
             <Campo label="Estilo">
               <input className="input" value={form.estilo} onChange={(e) => handleChange("estilo", e.target.value)} placeholder="Casual, formal..." />
@@ -261,7 +308,7 @@ export default function ClientesPage() {
               )}
             </Campo>
             <Campo label="Asesora">
-              <input className="input" value={form.asesora} onChange={(e) => handleChange("asesora", e.target.value)} placeholder="Johana" />
+              <input className="input" value={form.asesora} onChange={(e) => handleChange("asesora", e.target.value)} placeholder="JOHANA" />
             </Campo>
             <Campo label="Observaciones" full>
               <textarea className="input min-h-[70px]" value={form.observaciones} onChange={(e) => handleChange("observaciones", e.target.value)} placeholder="Preferencias, notas de venta..." />
@@ -333,7 +380,9 @@ export default function ClientesPage() {
                     <td className="p-3">{c.asesora || "—"}</td>
                     <td className="p-3 text-right space-x-3 whitespace-nowrap">
                       <button onClick={() => editar(c)} className="text-wine font-medium">Editar</button>
-                      <button onClick={() => eliminar(c)} className="text-gray-400 font-medium">Eliminar</button>
+                      {perfil.rol === "admin" && (
+                        <button onClick={() => eliminar(c)} className="text-gray-400 font-medium">Eliminar</button>
+                      )}
                     </td>
                   </tr>
                 ))}

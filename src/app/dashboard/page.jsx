@@ -41,7 +41,7 @@ export default function Dashboard() {
   };
 
   const hoy = clientes.filter((c) => c.dias_faltantes === 0);
-  const semana = clientes.filter((c) => c.dias_faltantes > 0 && c.dias_faltantes <= 7);
+  const semana = clientes.filter((c) => c.dias_faltantes > 0 && c.dias_faltantes <= 10);
 
   const waLink = (c, esHoy) => {
     const digits = (c.telefono || "").replace(/\D/g, "");
@@ -73,7 +73,7 @@ export default function Dashboard() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
               <Stat label="Cumplen hoy" valor={hoy.length} />
-              <Stat label="Próximos 7 días" valor={semana.length} />
+              <Stat label="Próximos 10 días" valor={semana.length} />
             </div>
 
             <Bloque
@@ -89,10 +89,10 @@ export default function Dashboard() {
               mostrarTienda={perfil.rol === "admin"}
             />
             <Bloque
-              titulo="Próximos 7 días"
+              titulo="Próximos 10 días"
               lista={semana}
               waLink={waLink}
-              vacio="Sin cumpleaños esta semana."
+              vacio="Sin cumpleaños en los próximos 10 días."
               tarea="promo_enviada_anio"
               tareaLabel="Tarjeta de invitación y descuento enviada"
               anioActual={anioActual}
@@ -131,6 +131,9 @@ function Bloque({ titulo, lista, waLink, vacio, esHoy, tarea, tareaLabel, anioAc
                 <div className={`text-xs mt-1 ${esHoy ? "text-white/80" : "text-gray-400"}`}>
                   {c.asesora || "Sin asesora"} · {c.distrito || "—"}
                   {mostrarTienda && c.tienda ? ` · ${c.tienda}` : ""}
+                </div>
+                <div className={`text-xs mt-0.5 ${esHoy ? "text-white/70" : "text-gray-400"}`}>
+                  {c.telefono || "Sin teléfono"}
                 </div>
                 <div className="text-xs font-medium mt-2">
                   {esHoy ? "Cumple hoy" : `Faltan ${c.dias_faltantes} días`}
