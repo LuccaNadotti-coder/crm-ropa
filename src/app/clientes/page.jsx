@@ -278,7 +278,14 @@ export default function ClientesPage() {
               </select>
             </Campo>
             <Campo label="Estilo">
-              <input className="input" value={form.estilo} onChange={(e) => handleChange("estilo", e.target.value)} placeholder="Casual, formal..." />
+              <select className="input" value={form.estilo} onChange={(e) => handleChange("estilo", e.target.value)}>
+                <option value="">Seleccionar</option>
+                <option>Clásico</option>
+                <option>Casual</option>
+                <option>Elegante</option>
+                <option>Ejecutivo</option>
+                <option>Romántico</option>
+              </select>
             </Campo>
             <Campo label="Departamento">
               <select className="input" value={form.departamento} onChange={(e) => handleChange("departamento", e.target.value)}>
