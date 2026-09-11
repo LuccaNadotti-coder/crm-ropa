@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth-helpers";
+import { traerTodas } from "@/lib/db";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -23,11 +24,18 @@ export default function Dashboard() {
   }, [router]);
 
   const cargar = async () => {
-    const { data, error } = await supabase
-      .from("vista_cumpleanos")
-      .select("*")
-      .order("dias_faltantes", { ascending: true });
-    if (!error) setClientes(data || []);
+    try {
+      const data = await traerTodas(() =>
+        supabase
+          .from("vista_cumpleanos")
+          .select("*")
+          .order("dias_faltantes", { ascending: true })
+          .order("id", { ascending: true })
+      );
+      setClientes(data);
+    } catch (e) {
+      alert("No se pudieron cargar los cumpleaños: " + e.message);
+    }
     setLoading(false);
   };
 

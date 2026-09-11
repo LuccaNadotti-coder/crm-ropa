@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth-helpers";
+import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 
 const MESES = [
@@ -41,31 +42,53 @@ export default function CatalogosPage() {
   }, [mes, perfil]);
 
   const cargarClientes = async () => {
-    const { data, error } = await supabase.from("clientes").select("*").order("nombre");
-    if (!error) setClientes(data || []);
+    try {
+      const data = await traerTodas(() =>
+        supabase
+          .from("clientes")
+          .select("*")
+          .order("nombre", { ascending: true })
+          .order("id", { ascending: true })
+      );
+      setClientes(data);
+    } catch (e) {
+      alert("No se pudieron cargar los clientes: " + e.message);
+    }
     setLoading(false);
   };
 
+  // Todo se pide paginado: el administrador ve las cinco tiendas juntas y
+  // supera el tope de 1000 filas por petición, que PostgREST aplica sin avisar.
   const cargarEnvios = async () => {
-    const { data: delMes } = await supabase
-      .from("envios_catalogo")
-      .select("cliente_id, enviado")
-      .eq("anio", anio)
-      .eq("mes", mes);
-    const mapaMes = {};
-    (delMes || []).forEach((e) => { mapaMes[e.cliente_id] = e.enviado; });
-    setEnvios(mapaMes);
+    try {
+      const delMes = await traerTodas(() =>
+        supabase
+          .from("envios_catalogo")
+          .select("cliente_id, enviado")
+          .eq("anio", anio)
+          .eq("mes", mes)
+          .order("cliente_id", { ascending: true })
+      );
+      const mapaMes = {};
+      delMes.forEach((e) => { mapaMes[e.cliente_id] = e.enviado; });
+      setEnvios(mapaMes);
 
-    const { data: historial } = await supabase
-      .from("envios_catalogo")
-      .select("cliente_id, fecha_marcado")
-      .eq("enviado", true)
-      .order("fecha_marcado", { ascending: false });
-    const ultimo = {};
-    (historial || []).forEach((e) => {
-      if (!ultimo[e.cliente_id]) ultimo[e.cliente_id] = e.fecha_marcado;
-    });
-    setUltimosEnvios(ultimo);
+      const historial = await traerTodas(() =>
+        supabase
+          .from("envios_catalogo")
+          .select("cliente_id, fecha_marcado")
+          .eq("enviado", true)
+          .order("fecha_marcado", { ascending: false })
+          .order("cliente_id", { ascending: true })
+      );
+      const ultimo = {};
+      historial.forEach((e) => {
+        if (!ultimo[e.cliente_id]) ultimo[e.cliente_id] = e.fecha_marcado;
+      });
+      setUltimosEnvios(ultimo);
+    } catch (e) {
+      alert("No se pudieron cargar los envíos de catálogo: " + e.message);
+    }
   };
 
   const marcarEnvio = async (clienteId) => {

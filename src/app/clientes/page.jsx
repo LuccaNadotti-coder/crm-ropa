@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth-helpers";
+import { traerTodas, enLotes } from "@/lib/db";
 import { PERU, DEPARTAMENTOS, TIENDAS } from "@/lib/peru-ubigeo";
 
 const TALLAS = ["XS", "S", "M", "L", "XL", "2XL", "26", "28", "30", "32", "34"];
@@ -55,11 +56,18 @@ export default function ClientesPage() {
 
   const cargarClientes = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("clientes")
-      .select("*")
-      .order("nombre", { ascending: true });
-    if (!error) setClientes(data || []);
+    try {
+      const data = await traerTodas(() =>
+        supabase
+          .from("clientes")
+          .select("*")
+          .order("nombre", { ascending: true })
+          .order("id", { ascending: true })
+      );
+      setClientes(data);
+    } catch (e) {
+      setMsg("No se pudieron cargar los clientes: " + e.message);
+    }
     setLoading(false);
   };
 
@@ -155,14 +163,31 @@ export default function ClientesPage() {
 
     const anioActual = new Date().getFullYear();
     const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const { data: envios } = await supabase
-      .from("envios_catalogo")
-      .select("cliente_id, mes, enviado")
-      .eq("anio", anioActual)
-      .in("cliente_id", filtrados.map((c) => c.id));
+
+    // Los envíos se piden por lotes de ids y paginados: con todas las tiendas
+    // juntas son miles de filas y antes se cortaban en silencio, por eso el
+    // Excel del administrador mostraba "No" en catálogos que sí se enviaron.
+    const envios = [];
+    try {
+      for (const lote of enLotes(filtrados.map((c) => c.id))) {
+        const filas = await traerTodas(() =>
+          supabase
+            .from("envios_catalogo")
+            .select("cliente_id, mes, enviado")
+            .eq("anio", anioActual)
+            .in("cliente_id", lote)
+            .order("cliente_id", { ascending: true })
+            .order("mes", { ascending: true })
+        );
+        envios.push(...filas);
+      }
+    } catch (e) {
+      setMsg("No se pudo exportar: falló la lectura de envíos de catálogo (" + e.message + ").");
+      return;
+    }
 
     const enviosPorCliente = {};
-    (envios || []).forEach((e) => {
+    envios.forEach((e) => {
       if (!enviosPorCliente[e.cliente_id]) enviosPorCliente[e.cliente_id] = {};
       enviosPorCliente[e.cliente_id][e.mes] = e.enviado;
     });
