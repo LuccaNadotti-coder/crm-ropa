@@ -87,19 +87,34 @@ export function iniciales(nombre) {
   return (partes[0][0] + partes[1][0]).toUpperCase();
 }
 
-/** Color estable a partir del nombre, para que cada avatar sea siempre igual. */
+/**
+ * Color estable a partir del nombre, para que cada avatar sea siempre igual.
+ * Los cinco tonos llevan texto blanco encima y todos pasan 4.5:1.
+ */
 export function colorAvatar(nombre) {
-  const paleta = ["bg-wine", "bg-brass", "bg-ink-soft", "bg-exito", "bg-alerta"];
+  const paleta = ["bg-wine", "bg-brass-deep", "bg-ink-soft", "bg-exito", "bg-alerta"];
   let suma = 0;
   for (const ch of normalizarTexto(nombre)) suma += ch.charCodeAt(0);
   return paleta[suma % paleta.length];
 }
 
-/** Enlace de WhatsApp con prefijo de Perú. */
+/**
+ * Un celular peruano son 9 dígitos y empieza en 9. Los fijos (7-8 dígitos) no
+ * reciben WhatsApp, y en la base hay números pegados de 17 dígitos y rellenos
+ * tipo 999999999 que generaban enlaces rotos.
+ */
+export function telefonoEsValido(telefono) {
+  const d = soloNumeros(telefono);
+  if (d.length === 9) return d.startsWith("9");
+  if (d.length === 11 && d.startsWith("51")) return d[2] === "9"; // ya trae el país
+  return false;
+}
+
+/** Enlace de WhatsApp con prefijo de Perú. Devuelve null si el número no sirve. */
 export function enlaceWhatsApp(telefono, texto) {
-  const digitos = soloNumeros(telefono);
-  if (!digitos) return null;
-  const conPais = digitos.length === 9 ? `51${digitos}` : digitos;
+  if (!telefonoEsValido(telefono)) return null;
+  const d = soloNumeros(telefono);
+  const conPais = d.length === 9 ? `51${d}` : d;
   return `https://wa.me/${conPais}?text=${encodeURIComponent(texto)}`;
 }
 

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  paraBuscar, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp,
+  paraBuscar, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
 } from "@/lib/formato";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
@@ -201,14 +201,20 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
         {cumpleAnios != null ? ` · cumple ${cumpleAnios} años` : ""}
       </p>
 
-      <a
-        href={enlaceWhatsApp(c.telefono, texto)}
-        target="_blank" rel="noopener noreferrer"
-        className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
-      >
-        <IconoWhatsApp />
-        Enviar saludo
-      </a>
+      {telefonoEsValido(c.telefono) ? (
+        <a
+          href={enlaceWhatsApp(c.telefono, texto)}
+          target="_blank" rel="noopener noreferrer"
+          className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
+        >
+          <IconoWhatsApp />
+          Enviar saludo
+        </a>
+      ) : (
+        <p className={`mt-4 rounded-lg px-3 py-2.5 text-center text-xs ${esHoy ? "bg-white/15 text-white" : "bg-alerta-soft text-alerta"}`}>
+          Teléfono inválido · no se puede enviar
+        </p>
+      )}
 
       <div className={`mt-4 space-y-2 border-t pt-3 ${esHoy ? "border-white/20" : "border-borde"}`}>
         <Casilla

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto,
+  MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
 } from "@/lib/formato";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
@@ -268,7 +268,7 @@ function Contenido({ perfil }) {
                     </p>
                   </div>
                   {marcado && <Insignia tono="exito" className="hidden sm:inline-flex">Enviado</Insignia>}
-                  {c.telefono && (
+                  {telefonoEsValido(c.telefono) && (
                     <a
                       href={enlaceWhatsApp(
                         c.telefono,

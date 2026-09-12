@@ -6,7 +6,8 @@ import { traerTodas, enLotes } from "@/lib/db";
 import { PERU, DEPARTAMENTOS, TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, normalizarTexto, normalizarOpcional, soloNumeros, soloLetras,
-  fechaCorta, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, MESES, MESES_CORTOS,
+  fechaCorta, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
+  MESES, MESES_CORTOS,
 } from "@/lib/formato";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
@@ -323,7 +324,15 @@ function Contenido({ perfil }) {
                           </div>
                         </div>
                       </td>
-                      <td className="tabular-nums text-ink-mute">{telefonoLegible(c.telefono)}</td>
+                      <td className="tabular-nums">
+                        {telefonoEsValido(c.telefono) ? (
+                          <span className="text-ink-mute">{telefonoLegible(c.telefono)}</span>
+                        ) : (
+                          <span className="font-medium text-wine" title="No es un celular válido: WhatsApp no abrirá.">
+                            {c.telefono || "—"} ⚠
+                          </span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap text-ink-mute">{diaYMes(c.fecha_nacimiento)}</td>
                       <td>{c.talla ? <Insignia tono="laton">{c.talla}</Insignia> : <span className="text-ink-faint">—</span>}</td>
                       <td className="text-ink-mute">{c.distrito || "—"}</td>
@@ -335,7 +344,7 @@ function Contenido({ perfil }) {
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
-                          {c.telefono && (
+                          {telefonoEsValido(c.telefono) && (
                             <a
                               href={enlaceWhatsApp(c.telefono, `Hola ${c.nombre}, te saludamos de SFIDA.`)}
                               target="_blank" rel="noopener noreferrer"
@@ -706,7 +715,7 @@ function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }
         </div>
       </div>
 
-      {cliente.telefono && (
+      {telefonoEsValido(cliente.telefono) ? (
         <a
           href={enlaceWhatsApp(cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
           target="_blank" rel="noopener noreferrer"
@@ -715,6 +724,11 @@ function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }
           <IconoWhatsApp />
           Escribir por WhatsApp
         </a>
+      ) : (
+        <p className="mt-5 rounded-lg bg-alerta-soft px-3 py-2.5 text-xs text-alerta">
+          El teléfono <strong>{cliente.telefono || "(vacío)"}</strong> no es un celular válido, así
+          que WhatsApp no abrirá. Un celular peruano son 9 dígitos y empieza en 9.
+        </p>
       )}
 
       <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4">

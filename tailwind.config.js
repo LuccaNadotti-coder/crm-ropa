@@ -2,7 +2,10 @@
 module.exports = {
   content: [
     "./src/app/**/*.{js,jsx}",
-    "./src/components/**/*.{js,jsx}"
+    "./src/components/**/*.{js,jsx}",
+    // src/lib también: colorAvatar() en formato.js devuelve nombres de clase.
+    // Sin esta línea Tailwind no los ve y esos avatares salen transparentes.
+    "./src/lib/**/*.{js,jsx}",
   ],
   theme: {
     extend: {
@@ -15,8 +18,9 @@ module.exports = {
           faint: "#9A9184",
         },
         brass: {
-          DEFAULT: "#B8925A",
-          dark: "#9A7943",
+          DEFAULT: "#B8925A",   // decorativo; 2.88:1 sobre blanco, no usar como relleno de dato
+          dark: "#9A7943",      // 4.05:1 — barras de gráfico
+          deep: "#8A6A38",      // 5.00:1 — fondo con texto blanco encima
           soft: "#E8DCC6",
         },
         wine: {

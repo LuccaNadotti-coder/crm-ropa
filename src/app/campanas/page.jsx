@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, diaYMes,
+  MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, diaYMes, telefonoEsValido,
 } from "@/lib/formato";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
@@ -129,7 +129,9 @@ function Contenido({ perfil }) {
   const destinatarios = useMemo(() => {
     const q = paraBuscar(f.busqueda);
     return clientes.filter((c) => {
-      if (!c.telefono) return false; // sin teléfono no hay WhatsApp posible
+      // Sin un celular válido el enlace de WhatsApp no abre nada: mejor dejarlos
+      // fuera que hacerte perder tiempo en la cola de envío.
+      if (!telefonoEsValido(c.telefono)) return false;
       if (f.tienda && c.tienda !== f.tienda) return false;
       if (f.talla && c.talla !== f.talla) return false;
       if (f.tipo && c.tipo_cliente !== f.tipo) return false;
@@ -142,7 +144,7 @@ function Contenido({ perfil }) {
     });
   }, [clientes, f, enviosMes]);
 
-  const sinTelefono = clientes.length - clientes.filter((c) => c.telefono).length;
+  const telefonoInvalido = clientes.filter((c) => !telefonoEsValido(c.telefono));
 
   const armarMensaje = (c) =>
     (mensaje || "")
@@ -401,10 +403,23 @@ function Contenido({ perfil }) {
               </p>
             </div>
 
-            {sinTelefono > 0 && (
-              <p className="mb-3 text-xs text-ink-mute">
-                {sinTelefono} {sinTelefono === 1 ? "cliente queda fuera" : "clientes quedan fuera"} por no tener teléfono.
-              </p>
+            {telefonoInvalido.length > 0 && (
+              <details className="mb-3 rounded-lg bg-alerta-soft p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-alerta">
+                  {telefonoInvalido.length} {telefonoInvalido.length === 1 ? "cliente queda fuera" : "clientes quedan fuera"} por teléfono inválido
+                </summary>
+                <ul className="mt-2 space-y-1 text-xs text-ink-mute">
+                  {telefonoInvalido.map((c) => (
+                    <li key={c.id} className="flex justify-between gap-2">
+                      <span className="truncate">{c.nombre}</span>
+                      <span className="shrink-0 tabular-nums">{c.telefono || "—"}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] text-ink-faint">
+                  Un celular peruano son 9 dígitos y empieza en 9. Corrígelos en Clientes.
+                </p>
+              </details>
             )}
 
             <button onClick={iniciar} disabled={destinatarios.length === 0 || !mensaje.trim()} className="btn-excel w-full">
