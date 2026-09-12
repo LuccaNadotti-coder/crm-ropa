@@ -173,9 +173,17 @@ function Contenido({ perfil }) {
   };
 
   const retomar = () => {
-    setCola(restauracion.cola);
-    setIndice(restauracion.indice);
-    setContactados(restauracion.contactados || []);
+    // Una campaña guardada puede ser de hace días: si algún cliente se eliminó
+    // desde entonces, su id ya no existe y la cola se quedaría trabada en él.
+    const vigentes = new Set(clientes.map((c) => c.id));
+    const yaContactados = (restauracion.contactados || []).filter((id) => vigentes.has(id));
+    const colaLimpia = restauracion.cola.filter((id) => vigentes.has(id));
+    const pendientes = restauracion.cola.slice(restauracion.indice);
+    const saltoHasta = colaLimpia.findIndex((id) => pendientes.includes(id));
+
+    setCola(colaLimpia);
+    setIndice(saltoHasta === -1 ? colaLimpia.length : saltoHasta);
+    setContactados(yaContactados);
     setMensaje(restauracion.mensaje || mensaje);
     setMarcarCatalogo(!!restauracion.marcarCatalogo);
     setEnCurso(true);

@@ -2,3 +2,6 @@ node_modules
 .next
 .env.local
 .DS_Store
+
+# Permisos locales de Claude Code (no se comparten)
+.claude/settings.local.json

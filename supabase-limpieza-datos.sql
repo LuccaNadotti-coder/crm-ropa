@@ -1,5 +1,13 @@
 -- =========================================================
--- LIMPIEZA DE DATOS — Pega todo en Supabase > SQL Editor > Run
+-- LIMPIEZA DE DATOS
+--
+-- ESTADO: YA APLICADO el 12 de septiembre de 2026.
+-- Se deja como registro de lo que se cambió. Es idempotente: volver a
+-- correrlo no hace nada, solo confirma que todo sigue en 0.
+--
+-- Resultado: Chimu SFIDA pasó de 291 a 292 clientes, 113 nombres y 13
+-- asesoras quedaron sin espacios sobrantes. Los 707 clientes y los 473
+-- registros de envío quedaron intactos.
 --
 -- Son los dos arreglos de datos que revisamos. El código de la app ya evita
 -- que vuelvan a ocurrir, pero los registros que ya están guardados hay que
