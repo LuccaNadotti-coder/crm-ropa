@@ -57,8 +57,8 @@ export default function CatalogosPage() {
     setLoading(false);
   };
 
-  // Todo se pide paginado: el administrador ve las cinco tiendas juntas y
-  // supera el tope de 1000 filas por petición, que PostgREST aplica sin avisar.
+  // Paginado por prevención: hoy son 473 filas, pero PostgREST corta en 1000
+  // sin avisar y el administrador carga las cinco tiendas juntas.
   const cargarEnvios = async () => {
     try {
       const delMes = await traerTodas(() =>

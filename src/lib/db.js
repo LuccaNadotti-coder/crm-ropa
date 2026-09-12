@@ -1,9 +1,15 @@
 "use client";
 
-// Supabase/PostgREST devuelve como máximo 1000 filas por petición y lo hace en
-// silencio: no avisa que cortó el resultado. El administrador ve TODAS las
-// tiendas, así que es el único que supera ese tope y el que recibía datos
-// incompletos. Estas utilidades traen el total en páginas y avisan si algo falla.
+// Dos límites de Supabase/PostgREST que fallan en silencio y que solo golpean
+// al administrador, porque es el único que carga las cinco tiendas juntas:
+//
+// 1) El filtro .in() viaja en la URL. Con 707 clientes la URL llega a ~26.000
+//    caracteres y el servidor responde 400 Bad Request; la consulta entera se
+//    pierde. Medido contra este proyecto: 600 ids (22.311 chars) pasa,
+//    707 ids (26.270 chars) falla. Por eso enLotes() parte la lista en grupos.
+//
+// 2) Cada petición devuelve como máximo 1000 filas y corta el resto sin avisar.
+//    Hoy no se llega (707 clientes), pero falta poco: traerTodas() lo previene.
 
 const TAMANO_PAGINA = 1000;
 
@@ -23,8 +29,8 @@ export async function traerTodas(construirQuery) {
 }
 
 /**
- * Parte una lista en lotes. Necesario para los filtros .in(): los ids viajan en
- * la URL y con muchos clientes la petición se pasa del largo máximo y falla.
+ * Parte una lista en lotes para los filtros .in().
+ * 200 ids son unos 7.500 caracteres de URL: muy por debajo del límite.
  */
 export function enLotes(lista, tamano = 200) {
   const lotes = [];

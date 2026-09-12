@@ -164,9 +164,10 @@ export default function ClientesPage() {
     const anioActual = new Date().getFullYear();
     const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-    // Los envíos se piden por lotes de ids y paginados: con todas las tiendas
-    // juntas son miles de filas y antes se cortaban en silencio, por eso el
-    // Excel del administrador mostraba "No" en catálogos que sí se enviaron.
+    // Los envíos se piden por lotes de ids. Antes se mandaban los 707 ids en
+    // una sola URL: el servidor la rechazaba con 400, el error se ignoraba y
+    // TODOS los catálogos salían como "No" en el Excel del administrador.
+    // Las tiendas, con menos clientes, no llegaban al límite y veían bien.
     const envios = [];
     try {
       for (const lote of enLotes(filtrados.map((c) => c.id))) {
