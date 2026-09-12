@@ -5,14 +5,17 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { requireSession, cerrarSesion } from "@/lib/auth-helpers";
 import {
-  IconoInicio, IconoUsuarios, IconoTorta, IconoCatalogo, IconoSalir, Avatar,
+  IconoInicio, IconoUsuarios, IconoTorta, IconoCatalogo, IconoSalir,
+  IconoWhatsApp, IconoGrafico, Avatar,
 } from "./ui";
 
 const SECCIONES = [
-  { href: "/",          etiqueta: "Resumen",    Icono: IconoInicio },
-  { href: "/clientes",  etiqueta: "Clientes",   Icono: IconoUsuarios },
-  { href: "/catalogos", etiqueta: "Catálogos",  Icono: IconoCatalogo },
-  { href: "/cumpleanos", etiqueta: "Cumpleaños", Icono: IconoTorta },
+  { href: "/",           etiqueta: "Resumen",    corta: "Resumen",  Icono: IconoInicio },
+  { href: "/clientes",   etiqueta: "Clientes",   corta: "Clientes", Icono: IconoUsuarios },
+  { href: "/catalogos",  etiqueta: "Catálogos",  corta: "Catálogo", Icono: IconoCatalogo },
+  { href: "/campanas",   etiqueta: "Campañas",   corta: "Campaña",  Icono: IconoWhatsApp },
+  { href: "/cumpleanos", etiqueta: "Cumpleaños", corta: "Cumple",   Icono: IconoTorta },
+  { href: "/reportes",   etiqueta: "Reportes",   corta: "Reportes", Icono: IconoGrafico },
 ];
 
 /**
@@ -128,20 +131,21 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
 
       {/* ---------- Barra inferior (celular) ---------- */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-borde bg-white/95 backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-lg">
-          {SECCIONES.map(({ href, etiqueta, Icono }) => {
+        <div className="mx-auto flex max-w-xl">
+          {SECCIONES.map(({ href, corta, Icono }) => {
             const activo = href === "/" ? ruta === "/" : ruta.startsWith(href);
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={activo ? "page" : undefined}
-                className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+                aria-label={corta}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
                   activo ? "text-wine" : "text-ink-faint"
                 }`}
               >
-                <Icono size={21} />
-                {etiqueta}
+                <Icono size={20} />
+                <span className="max-w-full truncate px-0.5">{corta}</span>
               </Link>
             );
           })}
