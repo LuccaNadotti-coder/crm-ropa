@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
+import { registrarEnvio } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
@@ -205,6 +206,7 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
         <a
           href={enlaceWhatsApp(c.telefono, texto)}
           target="_blank" rel="noopener noreferrer"
+          onClick={() => registrarEnvio(c, "cumpleanos")}
           className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
         >
           <IconoWhatsApp />

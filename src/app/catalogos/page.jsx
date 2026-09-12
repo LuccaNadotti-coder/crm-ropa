@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
+import { registrarEnvio } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
@@ -275,6 +276,7 @@ function Contenido({ perfil }) {
                         `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`
                       )}
                       target="_blank" rel="noopener noreferrer"
+                      onClick={() => registrarEnvio(c, "catalogo")}
                       className="btn-excel btn-sm shrink-0"
                     >
                       <IconoWhatsApp size={14} />

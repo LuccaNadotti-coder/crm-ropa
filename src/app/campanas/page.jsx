@@ -7,11 +7,14 @@ import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, diaYMes, telefonoEsValido,
 } from "@/lib/formato";
+import {
+  TOPE_DIARIO, enviosDeHoyPorTienda, registrarEnvio, restantesHoy,
+} from "@/lib/envios";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
   Avatar, Insignia, Campo, Progreso, EstadoVacio, FilasEsqueleto, Modal,
-  IconoWhatsApp, IconoUsuarios, IconoCheck, IconoFlecha,
+  IconoWhatsApp, IconoUsuarios, IconoCheck, IconoFlecha, IconoAlerta,
 } from "@/components/ui";
 
 const TALLAS = ["XS", "S", "M", "L", "XL", "2XL", "26", "28", "30", "32", "34"];
@@ -77,6 +80,7 @@ function Contenido({ perfil }) {
   const [cola, setCola] = useState([]);
   const [resumenAbierto, setResumenAbierto] = useState(false);
   const [restauracion, setRestauracion] = useState(null);
+  const [enviadosHoy, setEnviadosHoy] = useState({});
 
   const anio = new Date().getFullYear();
   const mes = new Date().getMonth() + 1;
@@ -86,17 +90,19 @@ function Contenido({ perfil }) {
   useEffect(() => {
     (async () => {
       try {
-        const [lista, envios] = await Promise.all([
+        const [lista, envios, deHoy] = await Promise.all([
           traerTodas(() => supabase.from("clientes").select("*").order("nombre").order("id")),
           traerTodas(() =>
             supabase.from("envios_catalogo").select("cliente_id, enviado")
               .eq("anio", anio).eq("mes", mes).order("cliente_id")
           ),
+          enviosDeHoyPorTienda(),
         ]);
         setClientes(lista);
         const mapa = {};
         envios.forEach((e) => { mapa[e.cliente_id] = e.enviado; });
         setEnviosMes(mapa);
+        setEnviadosHoy(deHoy);
       } catch (e) {
         avisos.error("No se pudieron cargar los clientes: " + e.message);
       }
@@ -145,6 +151,28 @@ function Contenido({ perfil }) {
   }, [clientes, f, enviosMes]);
 
   const telefonoInvalido = clientes.filter((c) => !telefonoEsValido(c.telefono));
+
+  /** Cuántos destinatarios pone cada tienda y cuánto cupo le queda hoy. */
+  const tiendasEnLista = useMemo(() => {
+    const porTienda = {};
+    destinatarios.forEach((c) => {
+      const t = c.tienda || "Sin tienda";
+      porTienda[t] = (porTienda[t] || 0) + 1;
+    });
+    return Object.entries(porTienda)
+      .map(([tienda, enLista]) => ({
+        tienda,
+        enLista,
+        usados: enviadosHoy[tienda] || 0,
+        quedan: restantesHoy(enviadosHoy, tienda),
+      }))
+      .sort((a, b) => b.enLista - a.enLista);
+  }, [destinatarios, enviadosHoy]);
+
+  // Lo máximo que se puede mandar hoy: nadie puede pasar del tope de su tienda.
+  const cupoTotal = tiendasEnLista.reduce(
+    (suma, t) => suma + Math.min(t.enLista, t.quedan), 0
+  );
 
   const armarMensaje = (c) =>
     (mensaje || "")
@@ -226,6 +254,13 @@ function Contenido({ perfil }) {
     const nuevos = [...contactados, actual.id];
     setContactados(nuevos);
 
+    // El conteo sube de inmediato en pantalla; el registro va en paralelo.
+    const tiendaActual = actual.tienda || "Sin tienda";
+    setEnviadosHoy((prev) => ({ ...prev, [tiendaActual]: (prev[tiendaActual] || 0) + 1 }));
+    registrarEnvio(actual, "campana").then((ok) => {
+      if (!ok) avisos.error("El envío se abrió, pero no se pudo registrar en el conteo del día.");
+    });
+
     if (marcarCatalogo && !enviosMes[actual.id]) {
       const { error } = await supabase.from("envios_catalogo").upsert(
         { cliente_id: actual.id, anio, mes, enviado: true, fecha_marcado: new Date().toISOString() },
@@ -253,6 +288,7 @@ function Contenido({ perfil }) {
   }
 
   if (enCurso && actual) {
+    const tiendaActual = actual.tienda || "Sin tienda";
     return (
       <ModoEnvio
         cliente={actual}
@@ -262,6 +298,9 @@ function Contenido({ perfil }) {
         contactados={contactados.length}
         marcarCatalogo={marcarCatalogo}
         mesNombre={MESES[mes - 1]}
+        usadosHoy={enviadosHoy[tiendaActual] || 0}
+        restantes={restantesHoy(enviadosHoy, tiendaActual)}
+        tienda={tiendaActual}
         onEnviar={enviar}
         onSaltar={saltar}
         onTerminar={terminar}
@@ -401,6 +440,36 @@ function Contenido({ perfil }) {
               <p className="mt-1 text-sm text-white/70">
                 {destinatarios.length === 1 ? "destinatario" : "destinatarios"}
               </p>
+              {cupoTotal < destinatarios.length && (
+                <p className="mt-3 border-t border-white/15 pt-3 text-xs text-white/70">
+                  Hoy puedes mandar <strong className="text-white">{cupoTotal}</strong>.
+                  El resto queda para mañana.
+                </p>
+              )}
+            </div>
+
+            {/* Cupo por tienda: el tope es por número, y cada tienda usa el suyo. */}
+            <div className="mb-4 space-y-2">
+              <p className="etiqueta">Cupo de hoy · {TOPE_DIARIO} por tienda</p>
+              {tiendasEnLista.map(({ tienda, enLista, usados, quedan }) => (
+                <div key={tienda} className="flex items-center gap-2 text-xs">
+                  <span className="w-28 shrink-0 truncate text-ink" title={tienda}>
+                    {tienda.replace(" SFIDA", "")}
+                  </span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-borde">
+                    <div
+                      className={`h-full rounded-full transition-all ${quedan === 0 ? "bg-wine" : "bg-brass-dark"}`}
+                      style={{ width: `${Math.min(100, (usados / TOPE_DIARIO) * 100)}%` }}
+                    />
+                  </div>
+                  <span className={`w-14 shrink-0 text-right tabular-nums ${quedan === 0 ? "font-bold text-wine" : "text-ink-mute"}`}>
+                    {quedan === 0 ? "lleno" : `${quedan} más`}
+                  </span>
+                  <span className="w-10 shrink-0 text-right tabular-nums text-ink-faint">
+                    ({enLista})
+                  </span>
+                </div>
+              ))}
             </div>
 
             {telefonoInvalido.length > 0 && (
@@ -422,15 +491,20 @@ function Contenido({ perfil }) {
               </details>
             )}
 
-            <button onClick={iniciar} disabled={destinatarios.length === 0 || !mensaje.trim()} className="btn-excel w-full">
+            <button
+              onClick={iniciar}
+              disabled={destinatarios.length === 0 || !mensaje.trim() || cupoTotal === 0}
+              className="btn-excel w-full"
+            >
               <IconoWhatsApp />
-              Iniciar campaña
+              {cupoTotal === 0 ? "Sin cupo por hoy" : "Iniciar campaña"}
             </button>
 
             <p className="mt-3 text-xs leading-relaxed text-ink-faint">
               WhatsApp no permite enviar en bloque desde fuera de su app. Esto te abre cada
               conversación con el mensaje ya escrito y va llevando la cuenta: tú solo das
-              enviar y pasas al siguiente.
+              enviar y pasas al siguiente. Cada tienda envía desde el WhatsApp que tenga
+              abierto en su propio equipo, y el tope de {TOPE_DIARIO} es por tienda y por día.
             </p>
 
             {destinatarios.length > 0 && (
@@ -498,9 +572,10 @@ function Contenido({ perfil }) {
 
 function ModoEnvio({
   cliente, mensaje, indice, total, contactados, marcarCatalogo, mesNombre,
-  onEnviar, onSaltar, onTerminar,
+  usadosHoy, restantes, tienda, onEnviar, onSaltar, onTerminar,
 }) {
   const botonRef = useRef(null);
+  const enTope = restantes <= 0;
 
   // El botón queda enfocado para poder avanzar con Enter sin usar el mouse.
   useEffect(() => { botonRef.current?.focus(); }, [cliente?.id]);
@@ -516,6 +591,15 @@ function ModoEnvio({
             <span className="text-ink-mute">{contactados} enviados</span>
           </div>
           <Progreso valor={indice} total={total} tono="exito" />
+
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2 text-xs">
+            <span className="truncate text-ink-mute">
+              Tope de hoy · <strong className="text-ink">{tienda}</strong>
+            </span>
+            <span className={`shrink-0 font-bold tabular-nums ${enTope ? "text-wine" : "text-ink"}`}>
+              {usadosHoy} / {TOPE_DIARIO}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-4 border-y border-borde py-5">
@@ -536,19 +620,40 @@ function ModoEnvio({
           </div>
         </div>
 
-        {marcarCatalogo && (
+        {marcarCatalogo && !enTope && (
           <p className="mb-4 flex items-center gap-2 text-xs text-ink-mute">
             <IconoCheck size={14} />
             Al enviar se marcará su catálogo de {mesNombre}.
           </p>
         )}
 
+        {enTope && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg bg-alerta-soft p-3">
+            <span className="mt-0.5 shrink-0 text-alerta"><IconoAlerta size={16} /></span>
+            <div className="text-xs leading-relaxed text-ink-soft">
+              <p className="font-semibold text-alerta">
+                {tienda} ya llegó a sus {TOPE_DIARIO} mensajes de hoy.
+              </p>
+              <p className="mt-1">
+                Seguir desde este número sube el riesgo de que WhatsApp lo
+                restrinja. Puedes saltar a clientes de otra tienda o continuar
+                mañana: la campaña queda guardada donde la dejes.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button onClick={onSaltar} className="btn-contorno">Saltar</button>
-          <button ref={botonRef} onClick={onEnviar} className="btn-excel flex-1">
+          <button
+            ref={botonRef}
+            onClick={onEnviar}
+            disabled={enTope}
+            className="btn-excel flex-1"
+          >
             <IconoWhatsApp />
-            Abrir WhatsApp y seguir
-            <IconoFlecha />
+            {enTope ? `Tope alcanzado` : "Abrir WhatsApp y seguir"}
+            {!enTope && <IconoFlecha />}
           </button>
         </div>
       </div>
