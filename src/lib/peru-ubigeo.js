@@ -45,4 +45,16 @@ export const PERU = {
 export const DEPARTAMENTOS = Object.keys(PERU);
 
 // Tiendas de la empresa — edita esta lista con los nombres reales de tus 5 tiendas.
-export const TIENDAS = ["San Miguel SFIDA", "Luzuriaga SFIDA", "Dominicana SFIDA", "Los Olivos SFIDA", "Chimu", "Online"];
+// Estos nombres deben coincidir EXACTAMENTE con perfiles.tienda en Supabase:
+// los permisos comparan el texto tal cual (p.tienda = c.tienda). Antes decían
+// "Chimu" y "Online" mientras los perfiles usaban "Chimu SFIDA" y "Online
+// SFIDA", así que el filtro del admin escondía 291 clientes y todo cliente
+// registrado con esos nombres quedaba invisible para su propia tienda.
+export const TIENDAS = [
+  "San Miguel SFIDA",
+  "Luzuriaga SFIDA",
+  "Dominicana SFIDA",
+  "Los Olivos SFIDA",
+  "Chimu SFIDA",
+  "Online SFIDA",
+];

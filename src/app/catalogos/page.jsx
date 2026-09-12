@@ -1,241 +1,292 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { requireSession } from "@/lib/auth-helpers";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
+import {
+  MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto,
+} from "@/lib/formato";
+import Marco from "@/components/Marco";
+import { useAvisos } from "@/components/Avisos";
+import {
+  Avatar, Insignia, Progreso, EstadoVacio, FilasEsqueleto,
+  IconoBuscar, IconoWhatsApp, IconoCatalogo, IconoX,
+} from "@/components/ui";
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-];
+export default function PaginaCatalogos() {
+  return (
+    <Marco
+      titulo="Catálogos"
+      descripcion="Marca qué clientes ya recibieron el catálogo de cada mes."
+    >
+      {(perfil) => <Contenido perfil={perfil} />}
+    </Marco>
+  );
+}
 
-export default function CatalogosPage() {
-  const router = useRouter();
-  const [perfil, setPerfil] = useState(null);
+function Contenido({ perfil }) {
+  const avisos = useAvisos();
+  const esAdmin = perfil.rol === "admin";
+
   const [clientes, setClientes] = useState([]);
-  const [envios, setEnvios] = useState({});         // { cliente_id: true/false }  -> del mes seleccionado
-  const [ultimosEnvios, setUltimosEnvios] = useState({}); // { cliente_id: fecha }  -> el más reciente, cualquier mes
-  const [loading, setLoading] = useState(true);
+  const [envios, setEnvios] = useState({});
+  const [ultimos, setUltimos] = useState({});
+  const [cargando, setCargando] = useState(true);
+  const [cargandoEnvios, setCargandoEnvios] = useState(true);
+  const [guardandoId, setGuardandoId] = useState(null);
+
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [anio] = useState(new Date().getFullYear());
-  const [query, setQuery] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [filtroTienda, setFiltroTienda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("no_enviados"); // no_enviados | enviados | todos
+  const [estado, setEstado] = useState("no_enviados");
+
+  /* -------------------------------------------------------------- Carga */
 
   useEffect(() => {
     (async () => {
-      const resultado = await requireSession(router);
-      if (!resultado) return;
-      setPerfil(resultado.perfil);
-      cargarClientes();
+      try {
+        const data = await traerTodas(() =>
+          supabase.from("clientes").select("*").order("nombre").order("id")
+        );
+        setClientes(data);
+      } catch (e) {
+        avisos.error("No se pudieron cargar los clientes: " + e.message);
+      }
+      setCargando(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, []);
 
-  useEffect(() => {
-    if (perfil) cargarEnvios();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, perfil]);
-
-  const cargarClientes = async () => {
-    try {
-      const data = await traerTodas(() =>
-        supabase
-          .from("clientes")
-          .select("*")
-          .order("nombre", { ascending: true })
-          .order("id", { ascending: true })
-      );
-      setClientes(data);
-    } catch (e) {
-      alert("No se pudieron cargar los clientes: " + e.message);
-    }
-    setLoading(false);
-  };
-
-  // Paginado por prevención: hoy son 473 filas, pero PostgREST corta en 1000
-  // sin avisar y el administrador carga las cinco tiendas juntas.
   const cargarEnvios = async () => {
+    setCargandoEnvios(true);
     try {
       const delMes = await traerTodas(() =>
-        supabase
-          .from("envios_catalogo")
-          .select("cliente_id, enviado")
-          .eq("anio", anio)
-          .eq("mes", mes)
-          .order("cliente_id", { ascending: true })
+        supabase.from("envios_catalogo").select("cliente_id, enviado")
+          .eq("anio", anio).eq("mes", mes).order("cliente_id")
       );
-      const mapaMes = {};
-      delMes.forEach((e) => { mapaMes[e.cliente_id] = e.enviado; });
-      setEnvios(mapaMes);
+      const mapa = {};
+      delMes.forEach((e) => { mapa[e.cliente_id] = e.enviado; });
+      setEnvios(mapa);
 
       const historial = await traerTodas(() =>
-        supabase
-          .from("envios_catalogo")
-          .select("cliente_id, fecha_marcado")
+        supabase.from("envios_catalogo").select("cliente_id, fecha_marcado")
           .eq("enviado", true)
-          .order("fecha_marcado", { ascending: false })
-          .order("cliente_id", { ascending: true })
+          .order("fecha_marcado", { ascending: false }).order("cliente_id")
       );
       const ultimo = {};
-      historial.forEach((e) => {
-        if (!ultimo[e.cliente_id]) ultimo[e.cliente_id] = e.fecha_marcado;
-      });
-      setUltimosEnvios(ultimo);
+      historial.forEach((e) => { if (!ultimo[e.cliente_id]) ultimo[e.cliente_id] = e.fecha_marcado; });
+      setUltimos(ultimo);
     } catch (e) {
-      alert("No se pudieron cargar los envíos de catálogo: " + e.message);
+      avisos.error("No se pudieron cargar los envíos: " + e.message);
     }
+    setCargandoEnvios(false);
   };
 
-  const marcarEnvio = async (clienteId) => {
-    const nuevoValor = !envios[clienteId];
-    setEnvios((prev) => ({ ...prev, [clienteId]: nuevoValor }));
+  useEffect(() => { cargarEnvios(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mes, anio]);
+
+  /* ------------------------------------------------------------- Marcar */
+
+  const marcar = async (cliente) => {
+    const nuevo = !envios[cliente.id];
+    setGuardandoId(cliente.id);
+    setEnvios((prev) => ({ ...prev, [cliente.id]: nuevo })); // respuesta inmediata
+
     const { error } = await supabase.from("envios_catalogo").upsert(
-      { cliente_id: clienteId, anio, mes, enviado: nuevoValor, fecha_marcado: new Date().toISOString() },
+      { cliente_id: cliente.id, anio, mes, enviado: nuevo, fecha_marcado: new Date().toISOString() },
       { onConflict: "cliente_id,anio,mes" }
     );
+
+    setGuardandoId(null);
     if (error) {
-      setEnvios((prev) => ({ ...prev, [clienteId]: !nuevoValor }));
-      alert("No se pudo guardar: " + error.message);
-    } else {
-      cargarEnvios();
+      setEnvios((prev) => ({ ...prev, [cliente.id]: !nuevo })); // se revierte
+      avisos.error("No se pudo guardar: " + error.message);
+    } else if (nuevo) {
+      setUltimos((prev) => ({ ...prev, [cliente.id]: new Date().toISOString() }));
     }
   };
 
-  const waLinkCatalogo = (c) => {
-    const digits = (c.telefono || "").replace(/\D/g, "");
-    const texto = `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`;
-    return `https://wa.me/51${digits}?text=${encodeURIComponent(texto)}`;
-  };
+  /* ------------------------------------------------------------ Listado */
 
-  const textoUltimoEnvio = (clienteId) => {
-    const fecha = ultimosEnvios[clienteId];
-    if (!fecha) return "Nunca recibió catálogo";
-    const dias = Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000);
-    if (dias === 0) return "Recibió catálogo hoy";
-    return `Último catálogo hace ${dias} día${dias === 1 ? "" : "s"}`;
-  };
-
-  let lista = clientes
-    .filter((c) => [c.nombre, c.telefono, c.distrito].join(" ").toLowerCase().includes(query.toLowerCase()))
-    .filter((c) => (filtroTienda ? c.tienda === filtroTienda : true));
-
-  if (filtroEstado === "no_enviados") lista = lista.filter((c) => !envios[c.id]);
-  if (filtroEstado === "enviados") lista = lista.filter((c) => envios[c.id]);
-
-  if (filtroEstado === "no_enviados") {
-    lista = [...lista].sort((a, b) => {
-      const fa = ultimosEnvios[a.id] ? new Date(ultimosEnvios[a.id]).getTime() : 0;
-      const fb = ultimosEnvios[b.id] ? new Date(ultimosEnvios[b.id]).getTime() : 0;
-      return fa - fb;
+  const enAlcance = useMemo(() => {
+    const q = paraBuscar(busqueda);
+    return clientes.filter((c) => {
+      if (filtroTienda && c.tienda !== filtroTienda) return false;
+      if (!q) return true;
+      return paraBuscar([c.nombre, c.telefono, c.distrito].join(" ")).includes(q);
     });
-  }
+  }, [clientes, busqueda, filtroTienda]);
 
-  const totalFiltrado = clientes
-    .filter((c) => [c.nombre, c.telefono, c.distrito].join(" ").toLowerCase().includes(query.toLowerCase()))
-    .filter((c) => (filtroTienda ? c.tienda === filtroTienda : true));
-  const enviados = totalFiltrado.filter((c) => envios[c.id]).length;
+  const lista = useMemo(() => {
+    let l = enAlcance;
+    if (estado === "no_enviados") l = l.filter((c) => !envios[c.id]);
+    if (estado === "enviados") l = l.filter((c) => envios[c.id]);
 
-  if (!perfil) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-[#F3F1EC]">
-        <p className="text-gray-400">Cargando...</p>
-      </main>
-    );
-  }
+    if (estado === "no_enviados") {
+      // Primero quienes llevan más tiempo sin recibir catálogo.
+      l = [...l].sort((a, b) => {
+        const fa = ultimos[a.id] ? new Date(ultimos[a.id]).getTime() : 0;
+        const fb = ultimos[b.id] ? new Date(ultimos[b.id]).getTime() : 0;
+        return fa - fb;
+      });
+    }
+    return l;
+  }, [enAlcance, envios, estado, ultimos]);
+
+  const enviados = enAlcance.filter((c) => envios[c.id]).length;
+  const pct = enAlcance.length ? Math.round((enviados / enAlcance.length) * 100) : 0;
+
+  const porTienda = useMemo(() => {
+    if (!esAdmin || filtroTienda) return [];
+    const acc = {};
+    enAlcance.forEach((c) => {
+      const t = c.tienda || "Sin tienda";
+      if (!acc[t]) acc[t] = { total: 0, enviados: 0 };
+      acc[t].total++;
+      if (envios[c.id]) acc[t].enviados++;
+    });
+    return Object.entries(acc).sort((a, b) => b[1].total - a[1].total);
+  }, [enAlcance, envios, esAdmin, filtroTienda]);
+
+  const textoUltimo = (id) => {
+    const f = ultimos[id];
+    if (!f) return "Nunca recibió catálogo";
+    const cuando = haceCuanto(f);
+    return cuando === "hoy" ? "Recibió catálogo hoy" : `Último catálogo ${cuando}`;
+  };
 
   return (
-    <main className="min-h-screen bg-[#F3F1EC] p-6 md:p-10">
-      <div className="max-w-3xl mx-auto">
-        <Link href="/" className="text-sm text-gray-500 hover:text-ink">← Inicio</Link>
-        <h1 className="text-3xl font-bold mt-2 mb-1 text-ink">Catálogos</h1>
-        <p className="text-gray-500 text-sm mb-6">Marca qué clientes ya recibieron el catálogo de cada mes.</p>
-
-        <div className="flex flex-wrap gap-3 mb-4">
-          <select className="input bg-white w-40" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-            {MESES.map((m, i) => (
-              <option key={m} value={i + 1}>{m} {anio}</option>
-            ))}
-          </select>
-          <select className="input bg-white w-44" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-            <option value="no_enviados">No enviados (sugerido)</option>
-            <option value="enviados">Ya enviados</option>
-            <option value="todos">Todos</option>
-          </select>
-          {perfil.rol === "admin" && (
-            <select className="input bg-white w-40" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)}>
-              <option value="">Todas las tiendas</option>
-              {TIENDAS.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          )}
-          <input
-            className="input bg-white flex-1 min-w-[180px]"
-            placeholder="Buscar cliente..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+    <>
+      {/* Progreso del mes */}
+      <div className="carta mb-5 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="etiqueta">Enviados en {MESES[mes - 1]} {anio}</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums text-ink">
+              {cargandoEnvios ? "—" : enviados}
+              <span className="text-lg font-medium text-ink-faint"> / {enAlcance.length}</span>
+            </p>
+          </div>
+          <p className="text-4xl font-bold tabular-nums text-brass-dark">{cargandoEnvios ? "—" : `${pct}%`}</p>
         </div>
+        <div className="mt-4"><Progreso valor={enviados} total={enAlcance.length} tono={pct === 100 ? "exito" : "brass"} /></div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
-          <div className="text-3xl font-bold text-wine">{enviados} / {totalFiltrado.length}</div>
-          <div className="text-sm text-gray-400 mt-1">Enviados en {MESES[mes - 1]}</div>
-        </div>
-
-        {filtroEstado === "no_enviados" && lista.length > 0 && (
-          <p className="text-xs text-gray-400 mb-3">
-            Ordenados: primero quienes tienen más tiempo esperando su catálogo.
-          </p>
-        )}
-
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          {loading ? (
-            <p className="p-8 text-center text-gray-400">Cargando clientes...</p>
-          ) : lista.length === 0 ? (
-            <p className="p-8 text-center text-gray-400">Sin resultados.</p>
-          ) : (
-            lista.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 p-4 border-b last:border-b-0">
-                <input
-                  type="checkbox"
-                  checked={!!envios[c.id]}
-                  onChange={() => marcarEnvio(c.id)}
-                  className="accent-brass w-5 h-5 flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className={`font-medium ${envios[c.id] ? "line-through text-gray-400" : "text-ink"}`}>{c.nombre}</div>
-                  <div className="text-xs text-gray-400">{c.telefono || "Sin teléfono"} · {c.distrito || "—"}</div>
-                  <div className="text-xs text-brass mt-0.5">{textoUltimoEnvio(c.id)}</div>
+        {porTienda.length > 1 && (
+          <div className="mt-5 grid grid-cols-1 gap-3 border-t border-borde pt-4 sm:grid-cols-2 lg:grid-cols-3">
+            {porTienda.map(([tienda, d]) => (
+              <div key={tienda}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                  <span className="truncate font-medium text-ink">{tienda}</span>
+                  <span className="shrink-0 tabular-nums text-ink-mute">{d.enviados}/{d.total}</span>
                 </div>
-                <a
-                  href={waLinkCatalogo(c)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold text-wine underline flex-shrink-0"
-                >
-                  WhatsApp →
-                </a>
+                <Progreso valor={d.enviados} total={d.total} tono={d.enviados === d.total ? "exito" : "brass"} />
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <style jsx global>{`
-        .input {
-          width: 100%;
-          border: 1px solid #D8D0BE;
-          border-radius: 8px;
-          padding: 10px 12px;
-          font-size: 0.9rem;
-        }
-        .input:focus {
-          outline: 2px solid #B8925A;
-        }
-      `}</style>
-    </main>
+      {/* Filtros */}
+      <div className="carta mb-5 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint">
+              <IconoBuscar />
+            </span>
+            <input className="input pl-9" placeholder="Buscar cliente..." value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar cliente" />
+            {busqueda && (
+              <button onClick={() => setBusqueda("")} className="absolute right-2 top-1/2 -translate-y-1/2 btn-icono" aria-label="Limpiar">
+                <IconoX />
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select className="input w-auto" value={mes} onChange={(e) => setMes(Number(e.target.value))} aria-label="Mes">
+              {MESES.map((m, i) => <option key={m} value={i + 1}>{m} {anio}</option>)}
+            </select>
+            <select className="input w-auto" value={estado} onChange={(e) => setEstado(e.target.value)} aria-label="Estado">
+              <option value="no_enviados">Pendientes</option>
+              <option value="enviados">Ya enviados</option>
+              <option value="todos">Todos</option>
+            </select>
+            {esAdmin && (
+              <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)} aria-label="Tienda">
+                <option value="">Todas las tiendas</option>
+                {TIENDAS.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+        {estado === "no_enviados" && lista.length > 0 && (
+          <p className="mt-3 text-xs text-ink-mute">
+            Ordenados por prioridad: primero quienes llevan más tiempo sin recibir catálogo.
+          </p>
+        )}
+      </div>
+
+      {/* Lista */}
+      <div className="carta overflow-hidden">
+        {cargando || cargandoEnvios ? (
+          <FilasEsqueleto filas={7} columnas={3} />
+        ) : lista.length === 0 ? (
+          <EstadoVacio
+            icono={<IconoCatalogo size={34} />}
+            titulo={estado === "no_enviados" ? "¡Todos al día!" : "Sin resultados"}
+            texto={
+              estado === "no_enviados"
+                ? `Todos los clientes de esta vista ya recibieron el catálogo de ${MESES[mes - 1]}.`
+                : "Prueba con otro filtro o búsqueda."
+            }
+          />
+        ) : (
+          <ul className="divide-y divide-borde/60">
+            {lista.map((c) => {
+              const marcado = !!envios[c.id];
+              return (
+                <li key={c.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${marcado ? "bg-exito-soft/40" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={marcado}
+                    disabled={guardandoId === c.id}
+                    onChange={() => marcar(c)}
+                    className="h-5 w-5 shrink-0 cursor-pointer accent-brass disabled:opacity-40"
+                    aria-label={`Marcar catálogo de ${MESES[mes - 1]} para ${c.nombre}`}
+                  />
+                  <Avatar nombre={c.nombre} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate font-medium ${marcado ? "text-ink-faint line-through" : "text-ink"}`}>
+                      {c.nombre}
+                    </p>
+                    <p className="truncate text-xs text-ink-mute">
+                      {telefonoLegible(c.telefono)} · {c.distrito || "—"}
+                      {esAdmin && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+                    </p>
+                    <p className={`truncate text-xs ${ultimos[c.id] ? "text-brass-dark" : "text-wine"}`}>
+                      {textoUltimo(c.id)}
+                    </p>
+                  </div>
+                  {marcado && <Insignia tono="exito" className="hidden sm:inline-flex">Enviado</Insignia>}
+                  {c.telefono && (
+                    <a
+                      href={enlaceWhatsApp(
+                        c.telefono,
+                        `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`
+                      )}
+                      target="_blank" rel="noopener noreferrer"
+                      className="btn-excel btn-sm shrink-0"
+                    >
+                      <IconoWhatsApp size={14} />
+                      <span className="hidden sm:inline">WhatsApp</span>
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }

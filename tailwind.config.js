@@ -7,11 +7,59 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ink: "#22201C",
-        brass: "#B8925A",
-        wine: "#8C3B44",
-        cream: "#F4EFE4"
-      }
+        // Paleta SFIDA
+        ink: {
+          DEFAULT: "#22201C",
+          soft: "#3A362F",
+          mute: "#6B6459",
+          faint: "#9A9184",
+        },
+        brass: {
+          DEFAULT: "#B8925A",
+          dark: "#9A7943",
+          soft: "#E8DCC6",
+        },
+        wine: {
+          DEFAULT: "#8C3B44",
+          dark: "#6F2C34",
+          soft: "#F0DCDE",
+        },
+        cream: "#F4EFE4",
+        arena: "#F3F1EC",
+        borde: "#E3DED2",
+        exito: { DEFAULT: "#2F6B4F", soft: "#DDEDE3" },
+        alerta: { DEFAULT: "#8A6314", soft: "#F7ECD2" },
+      },
+      fontFamily: {
+        sans: [
+          "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI",
+          "Roboto", "Helvetica Neue", "Arial", "sans-serif",
+        ],
+      },
+      boxShadow: {
+        carta: "0 1px 2px rgba(34,32,28,.04), 0 4px 16px rgba(34,32,28,.06)",
+        alta: "0 12px 40px rgba(34,32,28,.16)",
+      },
+      borderRadius: {
+        xl2: "14px",
+      },
+      keyframes: {
+        aparecer: {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        entrarPanel: {
+          from: { opacity: "0", transform: "translateX(16px)" },
+          to: { opacity: "1", transform: "translateX(0)" },
+        },
+        brillo: {
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
+      animation: {
+        aparecer: "aparecer .18s ease-out",
+        entrarPanel: "entrarPanel .22s cubic-bezier(.22,.8,.3,1)",
+      },
     },
   },
   plugins: [],

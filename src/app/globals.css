@@ -2,6 +2,135 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background: #F3F1EC;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-arena text-ink antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04";
+  }
+
+  /* Un solo anillo de foco para toda la app, visible solo al navegar con teclado. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brass ring-offset-2 ring-offset-arena rounded-md;
+  }
+
+  /* El date input nativo se ve distinto en cada navegador; esto lo empareja. */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: .5;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+}
+
+@layer components {
+  /* ---------- Campos ---------- */
+  .input {
+    @apply block w-full rounded-lg border border-borde bg-white px-3 py-2.5 text-sm text-ink
+           placeholder:text-ink-faint transition-colors;
+  }
+  .input:hover:not(:disabled) {
+    @apply border-brass/60;
+  }
+  .input:focus {
+    @apply border-brass outline-none ring-2 ring-brass/25;
+  }
+  .input:disabled {
+    @apply bg-cream text-ink-mute cursor-not-allowed;
+  }
+  .input-error {
+    @apply border-wine ring-2 ring-wine/15;
+  }
+
+  select.input {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B6459' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right .7rem center;
+  }
+
+  .etiqueta {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-ink-mute;
+  }
+
+  /* ---------- Botones ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none
+           active:scale-[.985] whitespace-nowrap;
+  }
+  .btn-primario   { @apply btn bg-ink text-white hover:bg-ink-soft shadow-sm; }
+  .btn-vino       { @apply btn bg-wine text-white hover:bg-wine-dark shadow-sm; }
+  .btn-laton      { @apply btn bg-brass text-white hover:bg-brass-dark shadow-sm; }
+  .btn-excel      { @apply btn bg-exito text-white hover:brightness-110 shadow-sm; }
+  .btn-contorno   { @apply btn border border-borde bg-white text-ink hover:border-ink-faint hover:bg-cream; }
+  .btn-fantasma   { @apply btn text-ink-mute hover:bg-cream hover:text-ink; }
+  .btn-peligro    { @apply btn bg-wine text-white hover:bg-wine-dark; }
+  .btn-sm         { @apply px-3 py-1.5 text-[13px] rounded-md; }
+  .btn-icono      { @apply btn p-2 rounded-md text-ink-mute hover:bg-cream hover:text-ink; }
+
+  /* ---------- Superficies ---------- */
+  .carta {
+    @apply rounded-xl2 border border-borde/70 bg-white shadow-carta;
+  }
+
+  .insignia {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  }
+
+  /* ---------- Tabla ---------- */
+  .tabla-crm {
+    @apply w-full border-collapse text-sm;
+  }
+  .tabla-crm thead th {
+    @apply sticky top-0 z-10 border-b border-borde bg-cream px-4 py-3 text-left text-[11px]
+           font-bold uppercase tracking-wide text-ink-mute whitespace-nowrap;
+  }
+  .tabla-crm tbody td {
+    @apply border-b border-borde/50 px-4 py-3 align-middle;
+  }
+  .tabla-crm tbody tr {
+    @apply transition-colors;
+  }
+  .tabla-crm tbody tr:hover {
+    @apply bg-cream/60;
+  }
+  .tabla-crm tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* ---------- Carga ---------- */
+  .esqueleto {
+    @apply relative overflow-hidden rounded-md bg-borde/50;
+  }
+  .esqueleto::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full;
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent);
+    animation: brillo 1.4s infinite;
+  }
+  @keyframes brillo {
+    100% { transform: translateX(100%); }
+  }
+}
+
+@layer utilities {
+  .scroll-fino::-webkit-scrollbar { width: 9px; height: 9px; }
+  .scroll-fino::-webkit-scrollbar-track { background: transparent; }
+  .scroll-fino::-webkit-scrollbar-thumb {
+    background: #D8D0BE; border-radius: 99px; border: 2px solid #F3F1EC;
+  }
+  .scroll-fino::-webkit-scrollbar-thumb:hover { background: #B8925A; }
+}
+
+/* Respeta a quien pidió menos movimiento en su sistema. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
