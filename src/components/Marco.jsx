@@ -4,16 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { requireSession, cerrarSesion } from "@/lib/auth-helpers";
+import { esAdmin as rolEsAdmin, esSupervisor, etiquetaRol, alcanceRol } from "@/lib/permisos";
 import {
   IconoInicio, IconoUsuarios, IconoTorta, IconoCatalogo, IconoSalir,
-  IconoWhatsApp, IconoGrafico, Avatar,
+  IconoWhatsApp, IconoGrafico, IconoOjo, Avatar,
 } from "./ui";
 
 const SECCIONES = [
   { href: "/",           etiqueta: "Resumen",    corta: "Resumen",  Icono: IconoInicio },
   { href: "/clientes",   etiqueta: "Clientes",   corta: "Clientes", Icono: IconoUsuarios },
   { href: "/catalogos",  etiqueta: "Catálogos",  corta: "Catálogo", Icono: IconoCatalogo },
-  { href: "/campanas",   etiqueta: "Campañas",   corta: "Campaña",  Icono: IconoWhatsApp },
+  // Campañas escribe (registra cada envío y marca catálogos), así que no
+  // aparece para el supervisor, que es de solo lectura.
+  { href: "/campanas",   etiqueta: "Campañas",   corta: "Campaña",  Icono: IconoWhatsApp, escribe: true },
   { href: "/cumpleanos", etiqueta: "Cumpleaños", corta: "Cumple",   Icono: IconoTorta },
   { href: "/reportes",   etiqueta: "Reportes",   corta: "Reportes", Icono: IconoGrafico },
 ];
@@ -50,7 +53,8 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
 
   if (!perfil) return null; // requireSession ya redirigió a /login
 
-  const esAdmin = perfil.rol === "admin";
+  const soloLectura = esSupervisor(perfil);
+  const secciones = SECCIONES.filter((s) => !(s.escribe && soloLectura));
 
   return (
     <div className="min-h-screen bg-arena">
@@ -62,7 +66,7 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {SECCIONES.map(({ href, etiqueta, Icono }) => {
+          {secciones.map(({ href, etiqueta, Icono }) => {
             const activo = href === "/" ? ruta === "/" : ruta.startsWith(href);
             return (
               <Link
@@ -85,11 +89,18 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
             <Avatar nombre={perfil.nombre || "Usuario"} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-ink">{perfil.nombre || "Usuario"}</p>
-              <p className="truncate text-[11px] text-ink-mute">
-                {esAdmin ? "Todas las tiendas" : perfil.tienda}
+              <p className="truncate text-[11px] text-ink-mute" title={alcanceRol(perfil)}>
+                {alcanceRol(perfil)}
               </p>
             </div>
           </div>
+
+          {soloLectura && (
+            <p className="mt-1 flex items-center gap-1.5 rounded-lg bg-cream px-2.5 py-2 text-[11px] leading-snug text-ink-mute">
+              <span className="shrink-0 text-brass-dark"><IconoOjo size={14} /></span>
+              Modo observación: puedes ver y exportar todo, pero no modificar.
+            </p>
+          )}
           <button
             onClick={() => cerrarSesion(router)}
             className="btn-fantasma btn-sm mt-1 w-full justify-start"
@@ -109,7 +120,7 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-brass">Investor CRM</p>
           </div>
           <div className="flex items-center gap-2">
-            <Insignia perfil={perfil} esAdmin={esAdmin} />
+            <Insignia perfil={perfil} />
             <button onClick={() => cerrarSesion(router)} className="btn-icono" aria-label="Cerrar sesión">
               <IconoSalir size={17} />
             </button>
@@ -132,7 +143,7 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
       {/* ---------- Barra inferior (celular) ---------- */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-borde bg-white/95 backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-xl">
-          {SECCIONES.map(({ href, corta, Icono }) => {
+          {secciones.map(({ href, corta, Icono }) => {
             const activo = href === "/" ? ruta === "/" : ruta.startsWith(href);
             return (
               <Link
@@ -156,10 +167,11 @@ export default function Marco({ children, titulo, descripcion, acciones }) {
   );
 }
 
-function Insignia({ perfil, esAdmin }) {
-  return (
-    <span className={`insignia ${esAdmin ? "bg-ink text-white" : "bg-brass-soft text-brass-dark"}`}>
-      {esAdmin ? "Admin" : perfil.tienda?.replace(" SFIDA", "")}
-    </span>
-  );
+function Insignia({ perfil }) {
+  const tono = rolEsAdmin(perfil)
+    ? "bg-ink text-white"
+    : esSupervisor(perfil)
+      ? "bg-wine-soft text-wine-dark"
+      : "bg-brass-soft text-brass-dark";
+  return <span className={`insignia ${tono}`}>{etiquetaRol(perfil)}</span>;
 }

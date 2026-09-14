@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
-import { MESES, diaYMes, telefonoLegible } from "@/lib/formato";
+import { MESES, diaYMes } from "@/lib/formato";
+import { veTodasLasTiendas, puedeEditar } from "@/lib/permisos";
 import Marco from "@/components/Marco";
 import {
-  TarjetaKpi, Progreso, Insignia, Avatar, EstadoVacio,
+  TarjetaKpi, Progreso, Insignia, Avatar, EstadoVacio, TelefonoCopiable,
   IconoUsuarios, IconoCatalogo, IconoTorta, IconoFlecha, IconoMas,
 } from "@/components/ui";
 
@@ -16,12 +17,14 @@ export default function Resumen() {
     <Marco
       titulo="Resumen"
       descripcion="Cómo va el mes en tus tiendas."
-      acciones={() => (
-        <Link href="/clientes" className="btn-primario">
-          <IconoMas />
-          Nuevo cliente
-        </Link>
-      )}
+      acciones={(perfil) =>
+        puedeEditar(perfil) ? (
+          <Link href="/clientes" className="btn-primario">
+            <IconoMas />
+            Nuevo cliente
+          </Link>
+        ) : null
+      }
     >
       {(perfil) => <Contenido perfil={perfil} />}
     </Marco>
@@ -36,7 +39,7 @@ function Contenido({ perfil }) {
   const hoy = new Date();
   const anio = hoy.getFullYear();
   const mes = hoy.getMonth() + 1;
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
 
   useEffect(() => {
     (async () => {
@@ -108,7 +111,7 @@ function Contenido({ perfil }) {
         <TarjetaKpi
           etiqueta="Clientes registrados"
           valor={clientes.length}
-          detalle={esAdmin ? "En todas las tiendas" : perfil.tienda}
+          detalle={verTodo ? "En todas las tiendas" : perfil.tienda}
           icono={<IconoUsuarios />}
           cargando={cargando}
         />
@@ -176,7 +179,7 @@ function Contenido({ perfil }) {
                 )}
               </div>
 
-              {esAdmin && porTienda.length > 1 && (
+              {verTodo && porTienda.length > 1 && (
                 <div className="mt-6 space-y-3.5 border-t border-borde pt-5">
                   <p className="etiqueta">Por tienda</p>
                   {porTienda.map(([tienda, datos]) => (
@@ -222,8 +225,9 @@ function Contenido({ perfil }) {
                   <Avatar nombre={c.nombre} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{c.nombre}</p>
-                    <p className="truncate text-xs text-ink-mute">
-                      {diaYMes(c.fecha_nacimiento)} · {telefonoLegible(c.telefono)}
+                    <p className="flex items-center gap-1.5 text-xs text-ink-mute">
+                      <span className="shrink-0">{diaYMes(c.fecha_nacimiento)} ·</span>
+                      <TelefonoCopiable telefono={c.telefono} soloIcono />
                     </p>
                   </div>
                   <Insignia tono={c.dias === 0 ? "vino" : "neutro"}>

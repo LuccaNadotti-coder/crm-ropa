@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
-import { MESES, MESES_CORTOS, fechaCorta, telefonoLegible } from "@/lib/formato";
+import { MESES, MESES_CORTOS, fechaCorta, telefonoEsValido } from "@/lib/formato";
+import { veTodasLasTiendas } from "@/lib/permisos";
+import { descargarArchivo } from "@/lib/portapapeles";
+import { construirDashboardHtml } from "@/lib/dashboard-export";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import { BarrasHorizontales, BarrasMensuales } from "@/components/Barras";
 import {
-  TarjetaKpi, Avatar, Insignia, EstadoVacio, FilasEsqueleto,
-  IconoMas, IconoUsuarios, IconoExcel,
+  TarjetaKpi, Avatar, Insignia, EstadoVacio, FilasEsqueleto, TelefonoCopiable,
+  IconoMas, IconoUsuarios, IconoExcel, IconoDescargar,
 } from "@/components/ui";
 
 export default function PaginaReportes() {
@@ -21,15 +24,32 @@ export default function PaginaReportes() {
   );
 }
 
+/**
+ * Días que faltan para el próximo cumpleaños, ignorando el año de nacimiento.
+ * Se parte el texto a mano porque new Date("1990-04-23") se interpreta en UTC
+ * y en Perú (UTC-5) daría el día anterior.
+ */
+function diasHastaCumple(fecha) {
+  if (!fecha) return null;
+  const [, m, d] = String(fecha).slice(0, 10).split("-").map(Number);
+  if (!m || !d) return null;
+  const hoy = new Date();
+  const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  let proximo = new Date(hoy.getFullYear(), m - 1, d);
+  if (proximo < base) proximo = new Date(hoy.getFullYear() + 1, m - 1, d);
+  return Math.round((proximo - base) / 86400000);
+}
+
 function Contenido({ perfil }) {
   const avisos = useAvisos();
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
 
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [mesSel, setMesSel] = useState(null);
   const [filtroTienda, setFiltroTienda] = useState("");
   const [exportando, setExportando] = useState(false);
+  const [armandoDashboard, setArmandoDashboard] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -143,6 +163,121 @@ function Contenido({ perfil }) {
     setExportando(false);
   };
 
+  /**
+   * Dashboard exportable: un solo archivo .html con los mismos KPIs, gráficos
+   * y conteos por tienda que están en pantalla. Se abre en cualquier navegador
+   * y con Ctrl+P queda un PDF para mandar por correo o WhatsApp.
+   *
+   * El avance del catálogo no vive en esta pantalla (la lista de altas no lo
+   * necesita), así que se pide al momento de exportar: es una consulta más y
+   * evita cargarlo cada vez que alguien entra a Reportes.
+   */
+  const exportarDashboard = async () => {
+    if (!mesActivo) return;
+    setArmandoDashboard(true);
+    try {
+      const [anioSel, mesNum] = mesActivo.split("-").map(Number);
+      const envios = await traerTodas(() =>
+        supabase.from("envios_catalogo").select("cliente_id, enviado")
+          .eq("anio", anioSel).eq("mes", mesNum).eq("enviado", true).order("cliente_id")
+      );
+      const conCatalogo = new Set(envios.map((e) => e.cliente_id));
+
+      // Conteo por tienda: cartera total, altas del mes y catálogo del mes.
+      const acumulado = {};
+      enAlcance.forEach((c) => {
+        const t = c.tienda || "Sin tienda";
+        if (!acumulado[t]) acumulado[t] = { tienda: t, clientes: 0, altas: 0, catalogo: 0 };
+        acumulado[t].clientes++;
+        if (conCatalogo.has(c.id)) acumulado[t].catalogo++;
+      });
+      nuevos.forEach((c) => {
+        const t = c.tienda || "Sin tienda";
+        if (acumulado[t]) acumulado[t].altas++;
+      });
+      const tiendas = Object.values(acumulado).sort((a, b) => b.clientes - a.clientes);
+
+      const catalogoEnviado = enAlcance.filter((c) => conCatalogo.has(c.id)).length;
+      const cumpleSemana = enAlcance.filter((c) => {
+        const d = diasHastaCumple(c.fecha_nacimiento);
+        return d !== null && d <= 7;
+      }).length;
+      const telefonosMalos = enAlcance.filter((c) => !telefonoEsValido(c.telefono)).length;
+      const alcance = filtroTienda || "Todas las tiendas";
+
+      const html = construirDashboardHtml({
+        generado: new Date().toLocaleString("es-PE"),
+        alcance,
+        mesEtiqueta: datosMes?.etiquetaLarga || mesActivo,
+        kpis: [
+          { etiqueta: "Clientes registrados", valor: enAlcance.length, detalle: alcance },
+          {
+            etiqueta: `Altas en ${datosMes?.etiquetaLarga || "el mes"}`,
+            valor: datosMes?.valor ?? 0,
+            detalle: variacion === null
+              ? "Sin mes previo para comparar"
+              : `${variacion >= 0 ? "▲" : "▼"} ${Math.abs(variacion)}% vs ${datosMesPrevio.etiquetaLarga}`,
+            tono: "brass",
+          },
+          {
+            etiqueta: "Promedio diario",
+            valor: (datosMes ? datosMes.valor / diasDelMes : 0).toFixed(1),
+            detalle: `Sobre ${diasDelMes} días`,
+          },
+          {
+            etiqueta: "Asesoras activas",
+            valor: new Set(nuevos.map((c) => c.asesora).filter(Boolean)).size,
+            detalle: "Registraron altas este mes",
+            tono: "wine",
+          },
+          {
+            etiqueta: `Catálogo de ${MESES[mesNum - 1]}`,
+            valor: `${catalogoEnviado} / ${enAlcance.length}`,
+            detalle: `${enAlcance.length ? Math.round((catalogoEnviado / enAlcance.length) * 100) : 0}% de la cartera`,
+            tono: "exito",
+          },
+          {
+            etiqueta: "Cumpleaños esta semana",
+            valor: cumpleSemana,
+            detalle: "Próximos 7 días",
+            tono: "wine",
+          },
+          {
+            etiqueta: "Tiendas con cartera",
+            valor: tiendas.length,
+            detalle: tiendas.length === 1 ? "Alcance de una sola tienda" : "Con al menos un cliente",
+          },
+          {
+            etiqueta: "Teléfonos no válidos",
+            valor: telefonosMalos,
+            detalle: telefonosMalos === 0 ? "Todos sirven para WhatsApp" : "No reciben WhatsApp",
+            tono: telefonosMalos > 0 ? "wine" : "exito",
+          },
+        ],
+        serie,
+        tiendas,
+        desgloses: [
+          ...(verTodo && !filtroTienda
+            ? [{ titulo: "Altas por tienda", subtitulo: datosMes?.etiquetaLarga, datos: agrupar(nuevos, "tienda", "Sin tienda"), total: nuevos.length }]
+            : []),
+          { titulo: "Altas por asesora", subtitulo: `${datosMes?.etiquetaLarga} · top 10`, datos: agrupar(nuevos, "asesora", "Sin asesora"), total: nuevos.length, maxItems: 10 },
+          { titulo: "Género", subtitulo: datosMes?.etiquetaLarga, datos: agrupar(nuevos, "genero"), total: nuevos.length },
+          { titulo: "Tipo de cliente", subtitulo: datosMes?.etiquetaLarga, datos: agrupar(nuevos, "tipo_cliente"), total: nuevos.length },
+          { titulo: "Tallas más registradas", subtitulo: `${datosMes?.etiquetaLarga} · top 8`, datos: agrupar(nuevos, "talla"), total: nuevos.length, maxItems: 8 },
+          { titulo: "Estilo", subtitulo: datosMes?.etiquetaLarga, datos: agrupar(nuevos, "estilo"), total: nuevos.length },
+          { titulo: "Distritos", subtitulo: `${datosMes?.etiquetaLarga} · top 8`, datos: agrupar(nuevos, "distrito", "Sin distrito"), total: nuevos.length, maxItems: 8 },
+        ],
+      });
+
+      const sufijo = filtroTienda ? `-${filtroTienda.replace(/\s+/g, "-")}` : "";
+      descargarArchivo(`dashboard-sfida-${mesActivo}${sufijo}.html`, html);
+      avisos.exito("Dashboard descargado. Ábrelo con doble clic; el botón de abajo lo guarda en PDF.");
+    } catch (e) {
+      avisos.error("No se pudo generar el dashboard: " + e.message);
+    }
+    setArmandoDashboard(false);
+  };
+
   if (cargando) {
     return (
       <div className="space-y-5">
@@ -170,18 +305,34 @@ function Contenido({ perfil }) {
 
   return (
     <div className="space-y-5">
-      {esAdmin && (
-        <div className="carta flex flex-wrap items-center gap-3 p-4">
-          <span className="etiqueta">Tienda</span>
-          <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)}>
-            <option value="">Todas las tiendas</option>
-            {TIENDAS.map((t) => <option key={t}>{t}</option>)}
-          </select>
-          <span className="text-sm text-ink-mute">
-            {enAlcance.length} clientes en total
+      <div className="carta flex flex-wrap items-center gap-3 p-4">
+        {verTodo && (
+          <>
+            <span className="etiqueta">Tienda</span>
+            <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)}>
+              <option value="">Todas las tiendas</option>
+              {TIENDAS.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </>
+        )}
+        <span className="text-sm text-ink-mute">
+          {enAlcance.length} clientes en total
+        </span>
+
+        <div className="ml-auto flex flex-col items-end gap-1">
+          <button
+            onClick={exportarDashboard}
+            disabled={armandoDashboard || !mesActivo}
+            className="btn-primario btn-sm"
+          >
+            <IconoDescargar size={15} />
+            {armandoDashboard ? "Armando..." : "Exportar dashboard"}
+          </button>
+          <span className="text-[11px] text-ink-faint">
+            Archivo con todos los gráficos · se imprime en PDF
           </span>
         </div>
-      )}
+      </div>
 
       {/* KPIs del mes seleccionado */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -230,7 +381,7 @@ function Contenido({ perfil }) {
 
       {/* Desgloses del mes */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {esAdmin && !filtroTienda && (
+        {verTodo && !filtroTienda && (
           <Panel titulo="Altas por tienda" subtitulo={datosMes?.etiquetaLarga}>
             <BarrasHorizontales datos={agrupar(nuevos, "tienda", "Sin tienda")} total={nuevos.length} />
           </Panel>
@@ -283,10 +434,12 @@ function Contenido({ perfil }) {
                 <Avatar nombre={c.nombre} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-ink">{c.nombre}</p>
-                  <p className="truncate text-xs text-ink-mute">
-                    {telefonoLegible(c.telefono)}
-                    {c.asesora ? ` · ${c.asesora}` : ""}
-                    {esAdmin && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+                  <p className="flex items-center gap-1.5 text-xs text-ink-mute">
+                    <TelefonoCopiable telefono={c.telefono} soloIcono />
+                    <span className="truncate">
+                      {c.asesora ? `· ${c.asesora}` : ""}
+                      {verTodo && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+                    </span>
                   </p>
                 </div>
                 <Insignia tono="neutro" className="shrink-0">

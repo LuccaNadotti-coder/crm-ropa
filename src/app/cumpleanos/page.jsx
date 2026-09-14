@@ -6,12 +6,14 @@ import { traerTodas } from "@/lib/db";
 import { registrarEnvio } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  paraBuscar, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
+  paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido,
 } from "@/lib/formato";
+import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
-  Avatar, Insignia, TarjetaKpi, EstadoVacio, FilasEsqueleto,
+  Avatar, Insignia, TarjetaKpi, EstadoVacio, FilasEsqueleto, TelefonoCopiable, BotonCopiar,
   IconoTorta, IconoWhatsApp, IconoBuscar, IconoX,
 } from "@/components/ui";
 
@@ -32,7 +34,9 @@ export default function PaginaCumpleanos() {
 
 function Contenido({ perfil }) {
   const avisos = useAvisos();
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
+  const puedeMarcar = puedeEditar(perfil);
+  const mandarWhatsApp = puedeEnviarWhatsApp(perfil);
 
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -58,6 +62,7 @@ function Contenido({ perfil }) {
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const marcarTarea = async (cliente, campo) => {
+    if (!puedeMarcar) return;
     const yaHecho = cliente[campo] === anio;
     const nuevo = yaHecho ? null : anio;
     setMarcandoId(cliente.id + campo);
@@ -131,7 +136,7 @@ function Contenido({ perfil }) {
                 </button>
               ))}
             </div>
-            {esAdmin && (
+            {verTodo && (
               <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)} aria-label="Tienda">
                 <option value="">Todas las tiendas</option>
                 {TIENDAS.map((t) => <option key={t}>{t}</option>)}
@@ -158,7 +163,9 @@ function Contenido({ perfil }) {
               key={c.id}
               cliente={c}
               anio={anio}
-              esAdmin={esAdmin}
+              verTodo={verTodo}
+              puedeMarcar={puedeMarcar}
+              mandarWhatsApp={mandarWhatsApp}
               marcandoId={marcandoId}
               onMarcar={marcarTarea}
             />
@@ -169,7 +176,7 @@ function Contenido({ perfil }) {
   );
 }
 
-function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
+function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp, marcandoId, onMarcar }) {
   const esHoy = c.dias_faltantes === 0;
   const edad = edadDesde(c.fecha_nacimiento);
   const cumpleAnios = edad != null ? edad + (esHoy ? 0 : 1) : null;
@@ -186,10 +193,10 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
           <h3 className={`truncate font-semibold leading-tight ${esHoy ? "text-white" : "text-ink"}`}>{c.nombre}</h3>
           <p className={`mt-0.5 truncate text-xs ${esHoy ? "text-white/75" : "text-ink-mute"}`}>
             {c.asesora || "Sin asesora"} · {c.distrito || "—"}
-            {esAdmin && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+            {verTodo && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
           </p>
-          <p className={`truncate text-xs tabular-nums ${esHoy ? "text-white/75" : "text-ink-mute"}`}>
-            {telefonoLegible(c.telefono)}
+          <p className={`flex items-center gap-1.5 text-xs ${esHoy ? "text-white/75" : "text-ink-mute"}`}>
+            <TelefonoCopiable telefono={c.telefono} soloIcono />
           </p>
         </div>
         <Insignia tono={esHoy ? "neutro" : c.dias_faltantes <= 3 ? "vino" : "laton"} className="shrink-0">
@@ -203,15 +210,28 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
       </p>
 
       {telefonoEsValido(c.telefono) ? (
-        <a
-          href={enlaceWhatsApp(c.telefono, texto)}
-          target="_blank" rel="noopener noreferrer"
-          onClick={() => registrarEnvio(c, "cumpleanos")}
-          className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
-        >
-          <IconoWhatsApp />
-          Enviar saludo
-        </a>
+        mandarWhatsApp ? (
+          <a
+            href={enlaceWhatsApp(c.telefono, texto)}
+            // Pestaña de WhatsApp reutilizable (ver src/lib/whatsapp.js)
+            target={VENTANA_WHATSAPP}
+            onClick={(e) => {
+              registrarEnvio(c, "cumpleanos");
+              alHacerClicWhatsApp(e, c.telefono, texto);
+            }}
+            className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
+          >
+            <IconoWhatsApp />
+            Enviar saludo
+          </a>
+        ) : (
+          <BotonCopiar
+            texto={texto}
+            etiqueta="Copiar el saludo"
+            etiquetaCopiada="Saludo copiado"
+            className="mt-4"
+          />
+        )
       ) : (
         <p className={`mt-4 rounded-lg px-3 py-2.5 text-center text-xs ${esHoy ? "bg-white/15 text-white" : "bg-alerta-soft text-alerta"}`}>
           Teléfono inválido · no se puede enviar
@@ -224,6 +244,7 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
           texto="Carta de cumpleaños enviada"
           oscuro={esHoy}
           cargando={marcandoId === c.id + "saludo_cumple_anio"}
+          bloqueada={!puedeMarcar}
           onCambiar={() => onMarcar(c, "saludo_cumple_anio")}
         />
         <Casilla
@@ -231,6 +252,7 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
           texto="Tarjeta de invitación / descuento"
           oscuro={esHoy}
           cargando={marcandoId === c.id + "promo_enviada_anio"}
+          bloqueada={!puedeMarcar}
           onCambiar={() => onMarcar(c, "promo_enviada_anio")}
         />
       </div>
@@ -238,15 +260,20 @@ function TarjetaCumple({ cliente: c, anio, esAdmin, marcandoId, onMarcar }) {
   );
 }
 
-function Casilla({ hecho, texto, oscuro, cargando, onCambiar }) {
+function Casilla({ hecho, texto, oscuro, cargando, bloqueada, onCambiar }) {
   return (
-    <label className={`flex cursor-pointer items-center gap-2 text-xs ${cargando ? "opacity-50" : ""}`}>
+    <label
+      className={`flex items-center gap-2 text-xs ${cargando ? "opacity-50" : ""} ${
+        bloqueada ? "cursor-default" : "cursor-pointer"
+      }`}
+      title={bloqueada ? "Cuenta de solo lectura" : undefined}
+    >
       <input
         type="checkbox"
         checked={hecho}
-        disabled={cargando}
+        disabled={cargando || bloqueada}
         onChange={onCambiar}
-        className="h-4 w-4 shrink-0 cursor-pointer accent-brass"
+        className="h-4 w-4 shrink-0 cursor-pointer accent-brass disabled:cursor-not-allowed"
       />
       <span className={hecho ? (oscuro ? "text-white/60 line-through" : "text-ink-faint line-through") : oscuro ? "text-white" : "text-ink-soft"}>
         {texto}

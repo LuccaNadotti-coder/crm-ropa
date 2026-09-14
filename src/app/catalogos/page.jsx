@@ -8,12 +8,17 @@ import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
 } from "@/lib/formato";
+import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
-  Avatar, Insignia, Progreso, EstadoVacio, FilasEsqueleto,
+  Avatar, Insignia, Progreso, EstadoVacio, FilasEsqueleto, TelefonoCopiable,
   IconoBuscar, IconoWhatsApp, IconoCatalogo, IconoX,
 } from "@/components/ui";
+
+const textoCatalogo = (c) =>
+  `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`;
 
 export default function PaginaCatalogos() {
   return (
@@ -28,7 +33,9 @@ export default function PaginaCatalogos() {
 
 function Contenido({ perfil }) {
   const avisos = useAvisos();
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
+  const puedeMarcar = puedeEditar(perfil);
+  const mandarWhatsApp = puedeEnviarWhatsApp(perfil);
 
   const [clientes, setClientes] = useState([]);
   const [envios, setEnvios] = useState({});
@@ -90,6 +97,7 @@ function Contenido({ perfil }) {
   /* ------------------------------------------------------------- Marcar */
 
   const marcar = async (cliente) => {
+    if (!puedeMarcar) return;
     const nuevo = !envios[cliente.id];
     setGuardandoId(cliente.id);
     setEnvios((prev) => ({ ...prev, [cliente.id]: nuevo })); // respuesta inmediata
@@ -139,7 +147,7 @@ function Contenido({ perfil }) {
   const pct = enAlcance.length ? Math.round((enviados / enAlcance.length) * 100) : 0;
 
   const porTienda = useMemo(() => {
-    if (!esAdmin || filtroTienda) return [];
+    if (!verTodo || filtroTienda) return [];
     const acc = {};
     enAlcance.forEach((c) => {
       const t = c.tienda || "Sin tienda";
@@ -148,7 +156,7 @@ function Contenido({ perfil }) {
       if (envios[c.id]) acc[t].enviados++;
     });
     return Object.entries(acc).sort((a, b) => b[1].total - a[1].total);
-  }, [enAlcance, envios, esAdmin, filtroTienda]);
+  }, [enAlcance, envios, verTodo, filtroTienda]);
 
   const textoUltimo = (id) => {
     const f = ultimos[id];
@@ -212,7 +220,7 @@ function Contenido({ perfil }) {
               <option value="enviados">Ya enviados</option>
               <option value="todos">Todos</option>
             </select>
-            {esAdmin && (
+            {verTodo && (
               <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)} aria-label="Tienda">
                 <option value="">Todas las tiendas</option>
                 {TIENDAS.map((t) => <option key={t}>{t}</option>)}
@@ -250,33 +258,42 @@ function Contenido({ perfil }) {
                   <input
                     type="checkbox"
                     checked={marcado}
-                    disabled={guardandoId === c.id}
+                    disabled={!puedeMarcar || guardandoId === c.id}
                     onChange={() => marcar(c)}
-                    className="h-5 w-5 shrink-0 cursor-pointer accent-brass disabled:opacity-40"
-                    aria-label={`Marcar catálogo de ${MESES[mes - 1]} para ${c.nombre}`}
+                    className="h-5 w-5 shrink-0 cursor-pointer accent-brass disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label={
+                      puedeMarcar
+                        ? `Marcar catálogo de ${MESES[mes - 1]} para ${c.nombre}`
+                        : `Catálogo de ${MESES[mes - 1]} de ${c.nombre}`
+                    }
+                    title={puedeMarcar ? undefined : "Cuenta de solo lectura"}
                   />
                   <Avatar nombre={c.nombre} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className={`truncate font-medium ${marcado ? "text-ink-faint line-through" : "text-ink"}`}>
                       {c.nombre}
                     </p>
-                    <p className="truncate text-xs text-ink-mute">
-                      {telefonoLegible(c.telefono)} · {c.distrito || "—"}
-                      {esAdmin && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+                    <p className="flex items-center gap-1.5 text-xs text-ink-mute">
+                      <TelefonoCopiable telefono={c.telefono} soloIcono />
+                      <span className="truncate">
+                        · {c.distrito || "—"}
+                        {verTodo && c.tienda ? ` · ${c.tienda.replace(" SFIDA", "")}` : ""}
+                      </span>
                     </p>
                     <p className={`truncate text-xs ${ultimos[c.id] ? "text-brass-dark" : "text-wine"}`}>
                       {textoUltimo(c.id)}
                     </p>
                   </div>
                   {marcado && <Insignia tono="exito" className="hidden sm:inline-flex">Enviado</Insignia>}
-                  {telefonoEsValido(c.telefono) && (
+                  {mandarWhatsApp && telefonoEsValido(c.telefono) && (
                     <a
-                      href={enlaceWhatsApp(
-                        c.telefono,
-                        `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`
-                      )}
-                      target="_blank" rel="noopener noreferrer"
-                      onClick={() => registrarEnvio(c, "catalogo")}
+                      href={enlaceWhatsApp(c.telefono, textoCatalogo(c))}
+                      // Pestaña de WhatsApp reutilizable (ver src/lib/whatsapp.js)
+                      target={VENTANA_WHATSAPP}
+                      onClick={(e) => {
+                        registrarEnvio(c, "catalogo");
+                        alHacerClicWhatsApp(e, c.telefono, textoCatalogo(c));
+                      }}
                       className="btn-excel btn-sm shrink-0"
                     >
                       <IconoWhatsApp size={14} />

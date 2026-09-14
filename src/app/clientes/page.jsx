@@ -9,10 +9,13 @@ import {
   fechaCorta, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
   MESES, MESES_CORTOS,
 } from "@/lib/formato";
+import { veTodasLasTiendas, puedeEditar, puedeEliminar, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
   Avatar, Insignia, Campo, Modal, PanelLateral, Confirmacion, EstadoVacio, FilasEsqueleto,
+  BotonCopiar, TelefonoCopiable,
   IconoBuscar, IconoMas, IconoExcel, IconoWhatsApp, IconoUsuarios, IconoX,
 } from "@/components/ui";
 
@@ -36,7 +39,10 @@ export default function PaginaClientes() {
 
 function Contenido({ perfil }) {
   const avisos = useAvisos();
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
+  const editar = puedeEditar(perfil);
+  const eliminar = puedeEliminar(perfil);
+  const mandarWhatsApp = puedeEnviarWhatsApp(perfil);
 
   const [clientes, setClientes] = useState([]);
   const [enviosMes, setEnviosMes] = useState({});
@@ -239,7 +245,7 @@ function Contenido({ perfil }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {esAdmin && (
+            {verTodo && (
               <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)} aria-label="Filtrar por tienda">
                 <option value="">Todas las tiendas</option>
                 {TIENDAS.map((t) => <option key={t}>{t}</option>)}
@@ -257,13 +263,15 @@ function Contenido({ perfil }) {
               <IconoExcel />
               {exportando ? "Generando..." : "Excel"}
             </button>
-            <button
-              onClick={() => { setEditando(null); setFormAbierto(true); }}
-              className="btn-primario"
-            >
-              <IconoMas />
-              Nuevo
-            </button>
+            {editar && (
+              <button
+                onClick={() => { setEditando(null); setFormAbierto(true); }}
+                className="btn-primario"
+              >
+                <IconoMas />
+                Nuevo
+              </button>
+            )}
           </div>
         </div>
 
@@ -292,7 +300,9 @@ function Contenido({ perfil }) {
             accion={
               hayFiltros
                 ? <button onClick={limpiarFiltros} className="btn-contorno">Quitar filtros</button>
-                : <button onClick={() => { setEditando(null); setFormAbierto(true); }} className="btn-primario"><IconoMas />Nuevo cliente</button>
+                : editar
+                  ? <button onClick={() => { setEditando(null); setFormAbierto(true); }} className="btn-primario"><IconoMas />Nuevo cliente</button>
+                  : null
             }
           />
         ) : (
@@ -307,7 +317,7 @@ function Contenido({ perfil }) {
                     <Th campo="fecha_nacimiento" orden={orden} onOrdenar={ordenarPor}>Cumpleaños</Th>
                     <Th campo="talla" orden={orden} onOrdenar={ordenarPor}>Talla</Th>
                     <Th campo="distrito" orden={orden} onOrdenar={ordenarPor}>Distrito</Th>
-                    {esAdmin && <Th campo="tienda" orden={orden} onOrdenar={ordenarPor}>Tienda</Th>}
+                    {verTodo && <Th campo="tienda" orden={orden} onOrdenar={ordenarPor}>Tienda</Th>}
                     <th>Catálogo {MESES_CORTOS[mesActual - 1]}</th>
                     <th aria-label="Acciones" />
                   </tr>
@@ -324,19 +334,22 @@ function Contenido({ perfil }) {
                           </div>
                         </div>
                       </td>
-                      <td className="tabular-nums">
+                      <td>
                         {telefonoEsValido(c.telefono) ? (
-                          <span className="text-ink-mute">{telefonoLegible(c.telefono)}</span>
+                          <TelefonoCopiable telefono={c.telefono} className="text-ink-mute" />
                         ) : (
-                          <span className="font-medium text-wine" title="No es un celular válido: WhatsApp no abrirá.">
-                            {c.telefono || "—"} ⚠
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="font-medium tabular-nums text-wine" title="No es un celular válido: WhatsApp no abrirá.">
+                              {c.telefono || "—"} ⚠
+                            </span>
+                            {c.telefono && <BotonCopiar texto={soloNumeros(c.telefono)} soloIcono />}
                           </span>
                         )}
                       </td>
                       <td className="whitespace-nowrap text-ink-mute">{diaYMes(c.fecha_nacimiento)}</td>
                       <td>{c.talla ? <Insignia tono="laton">{c.talla}</Insignia> : <span className="text-ink-faint">—</span>}</td>
                       <td className="text-ink-mute">{c.distrito || "—"}</td>
-                      {esAdmin && <td className="whitespace-nowrap text-ink-mute">{c.tienda || "—"}</td>}
+                      {verTodo && <td className="whitespace-nowrap text-ink-mute">{c.tienda || "—"}</td>}
                       <td>
                         {enviosMes[c.id]
                           ? <Insignia tono="exito">Enviado</Insignia>
@@ -344,21 +357,26 @@ function Contenido({ perfil }) {
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
-                          {telefonoEsValido(c.telefono) && (
+                          {mandarWhatsApp && telefonoEsValido(c.telefono) && (
                             <a
                               href={enlaceWhatsApp(c.telefono, `Hola ${c.nombre}, te saludamos de SFIDA.`)}
-                              target="_blank" rel="noopener noreferrer"
+                              // Nombre de ventana en vez de _blank: reutiliza la única
+                              // pestaña de WhatsApp. Sin rel="noopener", que lo anularía.
+                              target={VENTANA_WHATSAPP}
+                              onClick={(e) => alHacerClicWhatsApp(e, c.telefono, `Hola ${c.nombre}, te saludamos de SFIDA.`)}
                               className="btn-icono text-exito" aria-label={`WhatsApp a ${c.nombre}`}
                             >
                               <IconoWhatsApp size={17} />
                             </a>
                           )}
-                          <button
-                            onClick={() => { setEditando(c); setFormAbierto(true); }}
-                            className="btn-fantasma btn-sm"
-                          >
-                            Editar
-                          </button>
+                          {editar && (
+                            <button
+                              onClick={() => { setEditando(c); setFormAbierto(true); }}
+                              className="btn-fantasma btn-sm"
+                            >
+                              Editar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -381,7 +399,7 @@ function Contenido({ perfil }) {
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {c.talla && <Insignia tono="laton">{c.talla}</Insignia>}
                         {enviosMes[c.id] && <Insignia tono="exito">Catálogo enviado</Insignia>}
-                        {esAdmin && c.tienda && <Insignia>{c.tienda.replace(" SFIDA", "")}</Insignia>}
+                        {verTodo && c.tienda && <Insignia>{c.tienda.replace(" SFIDA", "")}</Insignia>}
                       </div>
                     </div>
                   </button>
@@ -423,7 +441,9 @@ function Contenido({ perfil }) {
 
       <FichaCliente
         cliente={fichaDe}
-        esAdmin={esAdmin}
+        puedeEditar={editar}
+        puedeEliminar={eliminar}
+        puedeEnviar={mandarWhatsApp}
         anio={anio}
         onCerrar={() => setFichaDe(null)}
         onEditar={(c) => { setFichaDe(null); setEditando(c); setFormAbierto(true); }}
@@ -666,7 +686,10 @@ function FormularioCliente({ abierto, cliente, perfil, onCerrar, onGuardado }) {
 
 /* ----------------------------------------------------------------- Ficha */
 
-function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }) {
+function FichaCliente({
+  cliente, anio, onCerrar, onEditar, onEliminar,
+  puedeEditar: sePuedeEditar, puedeEliminar: sePuedeEliminar, puedeEnviar,
+}) {
   const [historial, setHistorial] = useState(null);
 
   useEffect(() => {
@@ -695,12 +718,20 @@ function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }
       onCerrar={onCerrar}
       titulo="Ficha del cliente"
       pie={
-        <div className="flex gap-3">
-          <button onClick={() => onEditar(cliente)} className="btn-vino flex-1">Editar</button>
-          {esAdmin && (
-            <button onClick={() => onEliminar(cliente)} className="btn-contorno text-wine">Eliminar</button>
-          )}
-        </div>
+        sePuedeEditar || sePuedeEliminar ? (
+          <div className="flex gap-3">
+            {sePuedeEditar && (
+              <button onClick={() => onEditar(cliente)} className="btn-vino flex-1">Editar</button>
+            )}
+            {sePuedeEliminar && (
+              <button onClick={() => onEliminar(cliente)} className="btn-contorno text-wine">Eliminar</button>
+            )}
+          </div>
+        ) : (
+          <p className="text-center text-xs text-ink-faint">
+            Cuenta de solo lectura: esta ficha no se puede modificar.
+          </p>
+        )
       }
     >
       <div className="flex items-center gap-4">
@@ -716,14 +747,25 @@ function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }
       </div>
 
       {telefonoEsValido(cliente.telefono) ? (
-        <a
-          href={enlaceWhatsApp(cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
-          target="_blank" rel="noopener noreferrer"
-          className="btn-excel mt-5 w-full"
-        >
-          <IconoWhatsApp />
-          Escribir por WhatsApp
-        </a>
+        <div className="mt-5 flex gap-2">
+          {puedeEnviar && (
+            <a
+              href={enlaceWhatsApp(cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
+              target={VENTANA_WHATSAPP}
+              onClick={(e) => alHacerClicWhatsApp(e, cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
+              className="btn-excel flex-1"
+            >
+              <IconoWhatsApp />
+              Escribir por WhatsApp
+            </a>
+          )}
+          <BotonCopiar
+            texto={soloNumeros(cliente.telefono)}
+            etiqueta="Copiar número"
+            etiquetaCopiada="Número copiado"
+            className={puedeEnviar ? "" : "flex-1"}
+          />
+        </div>
       ) : (
         <p className="mt-5 rounded-lg bg-alerta-soft px-3 py-2.5 text-xs text-alerta">
           El teléfono <strong>{cliente.telefono || "(vacío)"}</strong> no es un celular válido, así
@@ -732,7 +774,7 @@ function FichaCliente({ cliente, esAdmin, anio, onCerrar, onEditar, onEliminar }
       )}
 
       <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4">
-        <Dato titulo="Teléfono" valor={telefonoLegible(cliente.telefono)} />
+        <Dato titulo="Teléfono" valor={<TelefonoCopiable telefono={cliente.telefono} soloIcono />} />
         <Dato titulo="DNI / RUC" valor={cliente.dni_ruc} />
         <Dato titulo="Cumpleaños" valor={`${fechaCorta(cliente.fecha_nacimiento)}${edad != null ? ` (${edad} años)` : ""}`} />
         <Dato titulo="Género" valor={cliente.genero} />

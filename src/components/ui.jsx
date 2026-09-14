@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { iniciales, colorAvatar } from "@/lib/formato";
+import { useEffect, useRef, useState } from "react";
+import { iniciales, colorAvatar, soloNumeros, telefonoLegible } from "@/lib/formato";
+import { copiarAlPortapapeles } from "@/lib/portapapeles";
 
 /* ---------------------------------------------------------------- Avatar */
 
@@ -217,6 +218,88 @@ export function Confirmacion({ abierto, titulo, mensaje, textoConfirmar = "Elimi
   );
 }
 
+/* ------------------------------------------------------------- Copiar */
+
+/**
+ * Botón "Copiar" con confirmación en el propio botón.
+ *
+ * Va al lado de los teléfonos: es la forma rápida de pasar un número a
+ * WhatsApp Web ya abierto, sin que la app tenga que abrir otra pestaña.
+ *
+ * stopPropagation porque muchas de estas filas son clickeables (abren la
+ * ficha del cliente) y copiar no debería abrir nada.
+ */
+export function BotonCopiar({
+  texto,
+  etiqueta = "Copiar",
+  etiquetaCopiada = "Copiado",
+  descripcion,
+  soloIcono = false,
+  className = "",
+}) {
+  const [copiado, setCopiado] = useState(false);
+  const [fallo, setFalló] = useState(false);
+  const temporizador = useRef(null);
+
+  useEffect(() => () => clearTimeout(temporizador.current), []);
+
+  const copiar = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const listo = await copiarAlPortapapeles(texto);
+    setCopiado(listo);
+    setFalló(!listo);
+    clearTimeout(temporizador.current);
+    temporizador.current = setTimeout(() => { setCopiado(false); setFalló(false); }, 1600);
+  };
+
+  if (!texto) return null;
+
+  const titulo = fallo
+    ? "El navegador no permitió copiar"
+    : descripcion || `Copiar ${texto}`;
+
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      title={titulo}
+      aria-label={titulo}
+      className={`btn btn-sm shrink-0 gap-1 ${
+        copiado
+          ? "bg-exito-soft text-exito"
+          : fallo
+            ? "bg-alerta-soft text-alerta"
+            : "border border-borde bg-white text-ink-mute hover:bg-cream hover:text-ink"
+      } ${soloIcono ? "px-2" : ""} ${className}`}
+    >
+      {copiado ? <IconoCheck size={13} /> : <IconoCopiar size={13} />}
+      {!soloIcono && <span>{fallo ? "No se pudo" : copiado ? etiquetaCopiada : etiqueta}</span>}
+    </button>
+  );
+}
+
+/**
+ * Teléfono + botón de copiar, que es la combinación que se repite en casi
+ * todas las pantallas. Se copia sin espacios porque así se pega directo en
+ * el buscador de WhatsApp.
+ */
+export function TelefonoCopiable({ telefono, className = "", soloIcono = false, legible = true }) {
+  const digitos = soloNumeros(telefono);
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span className="tabular-nums">{legible ? telefonoLegible(telefono) : digitos || "—"}</span>
+      {digitos && (
+        <BotonCopiar
+          texto={digitos}
+          soloIcono={soloIcono}
+          descripcion={`Copiar el número ${telefonoLegible(telefono)}`}
+        />
+      )}
+    </span>
+  );
+}
+
 /* --------------------------------------------------------------- Campo */
 
 export function Campo({ label, children, full, requerido, error, ayuda }) {
@@ -274,6 +357,15 @@ export const IconoAlerta = ({ size = 18 }) => (
 );
 export const IconoCheck = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...svg}><path d="m20 6-11 11-5-5" /></svg>
+);
+export const IconoCopiar = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...svg}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4H6a2 2 0 0 0-2 2v7.5A1.5 1.5 0 0 0 5.5 15" /></svg>
+);
+export const IconoOjo = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...svg}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+);
+export const IconoDescargar = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...svg}><path d="M12 3v11" /><path d="m7.5 10 4.5 4.5L16.5 10" /><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" /></svg>
 );
 export const IconoFlecha = ({ size = 14, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...svg}><path d="M5 12h14M13 6l6 6-6 6" /></svg>

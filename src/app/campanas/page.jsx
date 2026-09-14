@@ -10,11 +10,14 @@ import {
 import {
   TOPE_DIARIO, enviosDeHoyPorTienda, registrarEnvio, restantesHoy,
 } from "@/lib/envios";
+import { veTodasLasTiendas, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { abrirWhatsApp, enlaceParaEsteEquipo } from "@/lib/whatsapp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
   Avatar, Insignia, Campo, Progreso, EstadoVacio, FilasEsqueleto, Modal,
-  IconoWhatsApp, IconoUsuarios, IconoCheck, IconoFlecha, IconoAlerta,
+  BotonCopiar, TelefonoCopiable,
+  IconoWhatsApp, IconoUsuarios, IconoCheck, IconoFlecha, IconoAlerta, IconoOjo,
 } from "@/components/ui";
 
 const TALLAS = ["XS", "S", "M", "L", "XL", "2XL", "26", "28", "30", "32", "34"];
@@ -54,14 +57,32 @@ export default function PaginaCampanas() {
       titulo="Campañas"
       descripcion="Arma una lista y envía por WhatsApp uno por uno sin perder el hilo."
     >
-      {(perfil) => <Contenido perfil={perfil} />}
+      {(perfil) =>
+        // El supervisor no ve esta sección en el menú, pero podría llegar por
+        // la URL guardada: enviar registra en la base y él es de solo lectura.
+        puedeEnviarWhatsApp(perfil)
+          ? <Contenido perfil={perfil} />
+          : <SinPermiso />
+      }
     </Marco>
+  );
+}
+
+function SinPermiso() {
+  return (
+    <div className="carta">
+      <EstadoVacio
+        icono={<IconoOjo size={32} />}
+        titulo="Sección de solo escritura"
+        texto="Tu cuenta es de observación: puede ver y exportar todo, pero no enviar campañas. Los resultados de los envíos sí los ves en Reportes y Catálogos."
+      />
+    </div>
   );
 }
 
 function Contenido({ perfil }) {
   const avisos = useAvisos();
-  const esAdmin = perfil.rol === "admin";
+  const verTodo = veTodasLasTiendas(perfil);
 
   const [clientes, setClientes] = useState([]);
   const [enviosMes, setEnviosMes] = useState({});
@@ -249,7 +270,9 @@ function Contenido({ perfil }) {
     }
 
     // Se abre primero: window.open solo funciona dentro del clic del usuario.
-    window.open(enlace, "_blank", "noopener,noreferrer");
+    // Va siempre a la MISMA pestaña (ver src/lib/whatsapp.js), así WhatsApp Web
+    // no se desconecta y no quedan 40 pestañas abiertas al final de la campaña.
+    abrirWhatsApp(enlaceParaEsteEquipo(actual.telefono, armarMensaje(actual)) || enlace);
 
     const nuevos = [...contactados, actual.id];
     setContactados(nuevos);
@@ -333,7 +356,7 @@ function Contenido({ perfil }) {
             <p className="mb-4 text-sm text-ink-mute">Combina los filtros para armar la lista.</p>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {esAdmin && (
+              {verTodo && (
                 <Campo label="Tienda">
                   <select className="input" value={f.tienda} onChange={(e) => setF({ ...f, tienda: e.target.value })}>
                     <option value="">Todas</option>
@@ -503,8 +526,10 @@ function Contenido({ perfil }) {
             <p className="mt-3 text-xs leading-relaxed text-ink-faint">
               WhatsApp no permite enviar en bloque desde fuera de su app. Esto te abre cada
               conversación con el mensaje ya escrito y va llevando la cuenta: tú solo das
-              enviar y pasas al siguiente. Cada tienda envía desde el WhatsApp que tenga
-              abierto en su propio equipo, y el tope de {TOPE_DIARIO} es por tienda y por día.
+              enviar y pasas al siguiente. Todos los clientes usan <strong>una sola
+              pestaña</strong>, que se va reemplazando sola. Cada tienda envía desde el
+              WhatsApp que tenga abierto en su propio equipo, y el tope de {TOPE_DIARIO} es
+              por tienda y por día.
             </p>
 
             {destinatarios.length > 0 && (
@@ -516,7 +541,9 @@ function Contenido({ perfil }) {
                       <Avatar nombre={c.nombre} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-ink">{c.nombre}</p>
-                        <p className="truncate text-xs text-ink-faint">{telefonoLegible(c.telefono)}</p>
+                        <p className="text-xs text-ink-faint">
+                          <TelefonoCopiable telefono={c.telefono} soloIcono />
+                        </p>
                       </div>
                       {enviosMes[c.id] && <Insignia tono="exito">Ya recibió</Insignia>}
                     </li>
@@ -606,7 +633,9 @@ function ModoEnvio({
           <Avatar nombre={cliente.nombre} size="lg" />
           <div className="min-w-0">
             <p className="text-lg font-bold leading-tight text-ink">{cliente.nombre}</p>
-            <p className="text-sm tabular-nums text-ink-mute">{telefonoLegible(cliente.telefono)}</p>
+            <p className="text-sm text-ink-mute">
+              <TelefonoCopiable telefono={cliente.telefono} />
+            </p>
             <p className="truncate text-xs text-ink-faint">
               {cliente.tienda || "—"}{cliente.distrito ? ` · ${cliente.distrito}` : ""}
             </p>
@@ -614,7 +643,10 @@ function ModoEnvio({
         </div>
 
         <div className="my-5">
-          <p className="etiqueta mb-2">Mensaje que se va a enviar</p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="etiqueta">Mensaje que se va a enviar</p>
+            <BotonCopiar texto={mensaje} etiqueta="Copiar mensaje" etiquetaCopiada="Copiado" />
+          </div>
           <div className="whitespace-pre-wrap rounded-lg rounded-tl-none bg-exito-soft p-4 text-sm leading-relaxed text-ink-soft">
             {mensaje}
           </div>
@@ -656,6 +688,12 @@ function ModoEnvio({
             {!enTope && <IconoFlecha />}
           </button>
         </div>
+
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">
+          Cada cliente reemplaza al anterior en la misma pestaña de WhatsApp, así
+          no se corta la sesión ni se acumulan pestañas. Si prefieres pegar a
+          mano, usa <strong>Copiar mensaje</strong> y el botón junto al número.
+        </p>
       </div>
 
       <button onClick={onTerminar} className="btn-fantasma mx-auto mt-4 block">

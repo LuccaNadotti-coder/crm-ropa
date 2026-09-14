@@ -238,3 +238,116 @@ La protección real **no** es que cada tienda tenga su propia base de datos — 
 - Esto se aplica **directamente en la base de datos**, no en el código de la página — así que aunque alguien intente manipular la aplicación, la base de datos igual bloquea lo que no le corresponde ver.
 
 Si el día de mañana quieres agregar una sexta tienda, no hay que tocar código: solo creas un usuario nuevo en Authentication, le agregas su fila en `perfiles`, y le agregas su nombre a la lista `TIENDAS` en `src/lib/peru-ubigeo.js`.
+
+---
+
+# Actualización v3 — Supervisor, dashboard exportable y WhatsApp en una sola pestaña
+
+Aplicada el 13 de septiembre de 2026. Tres cosas:
+
+1. Una **cuenta de supervisor** que ve todo lo del administrador pero no puede tocar nada.
+2. Un **dashboard exportable** con todos los gráficos y el conteo por tienda.
+3. **Botón de copiar** junto a cada número, y WhatsApp deja de abrir una pestaña por cliente.
+
+La parte de base de datos **ya está aplicada** (archivo `supabase-migracion-v3-supervisor.sql`, se
+deja como registro). Solo hace falta publicar el código: `git add . && git commit && git push`.
+
+---
+
+## 1. La cuenta de supervisor
+
+El usuario es **`supervisor@sfida.com`**.
+
+La contraseña **no se escribe acá**: este repositorio es público en GitHub, y cualquiera que lea
+este archivo podría entrar a ver los datos de los 730 clientes. Para ponerle o cambiarle la clave:
+Supabase → **Authentication** → **Users** → los tres puntos junto al usuario → *Update user*.
+Pásasela a la persona por WhatsApp o en persona, no por un archivo del proyecto.
+
+### Qué ve y qué no
+
+| | Admin | Supervisor | Tienda |
+|---|---|---|---|
+| Ver las 6 tiendas | Sí | **Sí** | No, solo la suya |
+| Resumen, Clientes, Catálogos, Cumpleaños, Reportes | Sí | **Sí** | Sí (su tienda) |
+| Exportar a Excel y el dashboard | Sí | **Sí** | Sí |
+| Copiar números | Sí | **Sí** | Sí |
+| Crear o editar clientes | Sí | **No** | Sí |
+| Marcar catálogos y tareas de cumpleaños | Sí | **No** | Sí |
+| Enviar WhatsApp desde el CRM | Sí | **No** | Sí |
+| Sección Campañas | Sí | **No aparece** | Sí |
+| Eliminar clientes | Sí | **No** | No |
+
+El supervisor tampoco ve los botones de WhatsApp: abrir una conversación deja constancia en la
+base (cuenta contra el tope diario de la tienda), o sea que también es escribir. En su lugar tiene
+el botón de **copiar el número** y, en Cumpleaños, **copiar el saludo**.
+
+### Por qué es seguro de verdad
+
+El bloqueo no está en los botones escondidos, está en la base de datos. El rol `supervisor` solo
+tiene permisos de lectura (`SELECT`); no existe ninguna regla que le permita insertar, modificar
+ni borrar. Probado contra la API real: leer devuelve los 730 clientes, y crear/editar/eliminar
+responde *"new row violates row-level security policy"* o afecta 0 filas.
+
+### Para crear más supervisores
+
+Igual que las cuentas de tienda: Authentication → Add user (marca *Auto Confirm User*), copia su
+UUID y córrelo en el SQL Editor:
+
+```sql
+insert into perfiles (id, rol, tienda, nombre)
+values ('UUID_QUE_COPIASTE', 'supervisor', null, 'Nombre de la persona');
+```
+
+---
+
+## 2. El dashboard exportable
+
+En **Reportes**, arriba a la derecha: **Exportar dashboard**. Descarga un archivo
+`dashboard-sfida-2026-09.html` con:
+
+- 8 indicadores: clientes registrados, altas del mes (con el % contra el mes anterior), promedio
+  diario, asesoras activas, avance del catálogo, cumpleaños de la semana, tiendas con cartera y
+  teléfonos que no sirven para WhatsApp.
+- El gráfico de altas de los últimos 12 meses.
+- **Conteo por tienda**: clientes, % del total, altas del mes y avance del catálogo, con total abajo.
+- Los desgloses del mes: tienda, asesora, género, tipo, talla, estilo y distrito.
+
+Respeta el mes y la tienda que tengas elegidos en pantalla: si filtras por Chimu, el dashboard sale
+solo de Chimu.
+
+**Para mandarlo en PDF:** ábrelo con doble clic y usa el botón negro *Imprimir o guardar en PDF*
+(o Ctrl+P → Destino: *Guardar como PDF*).
+
+Es un solo archivo, sin internet ni programas: se abre en cualquier PC o celular, y se puede
+adjuntar por correo o WhatsApp tal cual.
+
+---
+
+## 3. WhatsApp: una sola pestaña, y copiar números
+
+### El problema de las pestañas
+
+WhatsApp Web no admite dos pestañas a la vez: al abrir la segunda, la primera queda desconectada.
+Antes cada cliente abría su propia pestaña, así que en una campaña de 40 quedaban 40 pestañas y
+había que ir cerrando la anterior a mano.
+
+Ahora **todos los clientes usan la misma pestaña**: el siguiente reemplaza al anterior ahí mismo.
+No se corta la sesión ni se acumula nada. Aplica en Campañas, Clientes, Catálogos y Cumpleaños.
+
+De paso, en PC se abre directo en `web.whatsapp.com` en vez de pasar por la pantalla intermedia de
+`wa.me` ("Continuar al chat"), que era un clic extra por cada cliente. En celular sigue abriendo la
+app, como antes.
+
+*(Detalle técnico, por si alguien toca el código: esto funciona porque los enlaces usan un nombre
+de ventana en vez de `_blank`. Si alguien les vuelve a poner `rel="noopener"`, el navegador ignora
+el nombre y regresan las pestañas sueltas. Está explicado en `src/lib/whatsapp.js`.)*
+
+### Copiar números
+
+Al costado de cada teléfono hay un botón de copiar (dice **Copiar** donde entra, y es solo un
+ícono donde el espacio es corto). Copia el número sin espacios, listo para pegar en el buscador de
+WhatsApp Web que ya tengas abierto. Está en Clientes (tabla y ficha), Cumpleaños, Catálogos,
+Campañas, Reportes y el Resumen.
+
+En el modo de envío de Campañas además hay **Copiar mensaje**, por si prefieres pegar todo a mano
+en lugar de que el CRM abra la conversación.
