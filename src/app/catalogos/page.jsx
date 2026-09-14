@@ -9,7 +9,7 @@ import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
-import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
+import { BotonWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
@@ -285,20 +285,15 @@ function Contenido({ perfil }) {
                     </p>
                   </div>
                   {marcado && <Insignia tono="exito" className="hidden sm:inline-flex">Enviado</Insignia>}
-                  {mandarWhatsApp && telefonoEsValido(c.telefono) && (
-                    <a
-                      href={enlaceWhatsApp(c.telefono, textoCatalogo(c))}
-                      // Pestaña de WhatsApp reutilizable (ver src/lib/whatsapp.js)
-                      target={VENTANA_WHATSAPP}
-                      onClick={(e) => {
-                        registrarEnvio(c, "catalogo");
-                        alHacerClicWhatsApp(e, c.telefono, textoCatalogo(c));
-                      }}
+                  {mandarWhatsApp && (
+                    <BotonWhatsApp
+                      telefono={c.telefono}
+                      texto={textoCatalogo(c)}
+                      etiqueta="WhatsApp"
+                      claseEtiqueta="hidden sm:inline"
                       className="btn-excel btn-sm shrink-0"
-                    >
-                      <IconoWhatsApp size={14} />
-                      <span className="hidden sm:inline">WhatsApp</span>
-                    </a>
+                      alEnviar={() => registrarEnvio(c, "catalogo")}
+                    />
                   )}
                 </li>
               );

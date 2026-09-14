@@ -10,7 +10,7 @@ import {
   MESES, MESES_CORTOS,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEliminar, puedeEnviarWhatsApp } from "@/lib/permisos";
-import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
+import { BotonWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
@@ -24,6 +24,8 @@ const GENEROS = ["Caballero", "Dama", "Ambos"];
 const TIPOS = ["Minorista", "Mayorista"];
 const ESTILOS = ["Clásico", "Casual", "Elegante", "Ejecutivo", "Romántico"];
 const POR_PAGINA = 40;
+
+const saludo = (c) => `Hola ${c.nombre}, te saludamos de SFIDA.`;
 
 const formVacio = {
   nombre: "", dni_ruc: "", telefono: "", fecha_nacimiento: "", genero: "",
@@ -357,17 +359,14 @@ function Contenido({ perfil }) {
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-1">
-                          {mandarWhatsApp && telefonoEsValido(c.telefono) && (
-                            <a
-                              href={enlaceWhatsApp(c.telefono, `Hola ${c.nombre}, te saludamos de SFIDA.`)}
-                              // Nombre de ventana en vez de _blank: reutiliza la única
-                              // pestaña de WhatsApp. Sin rel="noopener", que lo anularía.
-                              target={VENTANA_WHATSAPP}
-                              onClick={(e) => alHacerClicWhatsApp(e, c.telefono, `Hola ${c.nombre}, te saludamos de SFIDA.`)}
-                              className="btn-icono text-exito" aria-label={`WhatsApp a ${c.nombre}`}
-                            >
-                              <IconoWhatsApp size={17} />
-                            </a>
+                          {mandarWhatsApp && (
+                            <BotonWhatsApp
+                              telefono={c.telefono}
+                              texto={saludo(c)}
+                              etiqueta={`WhatsApp a ${c.nombre}`}
+                              soloIcono
+                              className="btn-icono text-exito"
+                            />
                           )}
                           {editar && (
                             <button
@@ -749,15 +748,12 @@ function FichaCliente({
       {telefonoEsValido(cliente.telefono) ? (
         <div className="mt-5 flex gap-2">
           {puedeEnviar && (
-            <a
-              href={enlaceWhatsApp(cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
-              target={VENTANA_WHATSAPP}
-              onClick={(e) => alHacerClicWhatsApp(e, cliente.telefono, `Hola ${cliente.nombre}, te saludamos de SFIDA.`)}
+            <BotonWhatsApp
+              telefono={cliente.telefono}
+              texto={saludo(cliente)}
+              etiqueta="Escribir por WhatsApp"
               className="btn-excel flex-1"
-            >
-              <IconoWhatsApp />
-              Escribir por WhatsApp
-            </a>
+            />
           )}
           <BotonCopiar
             variante="boton"

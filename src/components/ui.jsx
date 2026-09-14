@@ -246,6 +246,7 @@ export function BotonCopiar({
   soloIcono = false,
   variante = "chip", // "chip" dentro de listas y tablas; "boton" cuando va solo
   className = "",
+  alCopiar,
 }) {
   const [copiado, setCopiado] = useState(false);
   const [fallo, setFallo] = useState(false);
@@ -259,6 +260,7 @@ export function BotonCopiar({
     const listo = await copiarAlPortapapeles(texto);
     setCopiado(listo);
     setFallo(!listo);
+    if (listo) alCopiar?.();
     clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => { setCopiado(false); setFallo(false); }, 1600);
   };
@@ -277,11 +279,17 @@ export function BotonCopiar({
 
   // El chip es deliberadamente chico: va pegado al número dentro de celdas
   // angostas, y si crece parte el teléfono en varias líneas.
-  const forma = variante === "boton"
-    ? "btn btn-contorno gap-2"
-    : `inline-flex items-center gap-1 rounded-md border px-2 py-[3px] text-[11px] font-semibold ${
-        soloIcono ? "px-1.5" : ""
-      }`;
+  // "libre" no pone ningún color: lo usa quien ya trae su propio botón hecho
+  // (por ejemplo el verde de WhatsApp cuando el equipo trabaja en modo copiar).
+  const forma = {
+    boton: "btn btn-contorno gap-2",
+    libre: "",
+    chip: `inline-flex items-center gap-1 rounded-md border px-2 py-[3px] text-[11px] font-semibold ${
+      soloIcono ? "px-1.5" : ""
+    } ${estado}`,
+  }[variante];
+
+  const grande = variante !== "chip";
 
   return (
     <button
@@ -291,9 +299,9 @@ export function BotonCopiar({
       aria-label={titulo}
       className={`shrink-0 whitespace-nowrap align-middle transition-colors ${forma} ${
         variante === "boton" && copiado ? "border-exito/35 bg-exito-soft text-exito" : ""
-      } ${variante === "chip" ? estado : ""} ${className}`}
+      } ${className}`}
     >
-      {copiado ? <IconoCheck size={variante === "boton" ? 16 : 12} /> : <IconoCopiar size={variante === "boton" ? 16 : 12} />}
+      {copiado ? <IconoCheck size={grande ? 16 : 12} /> : <IconoCopiar size={grande ? 16 : 12} />}
       {!soloIcono && <span>{fallo ? "No se pudo" : copiado ? etiquetaCopiada : etiqueta}</span>}
     </button>
   );

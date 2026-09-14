@@ -247,7 +247,7 @@ Aplicada el 13 de septiembre de 2026. Tres cosas:
 
 1. Una **cuenta de supervisor** que ve todo lo del administrador pero no puede tocar nada.
 2. Un **dashboard exportable** con todos los gráficos y el conteo por tienda.
-3. **Botón de copiar** junto a cada número, y WhatsApp deja de abrir una pestaña por cliente.
+3. **Botón de copiar** junto a cada número, y tres formas de abrir WhatsApp (ya no una pestaña por cliente).
 
 La parte de base de datos **ya está aplicada** (archivo `supabase-migracion-v3-supervisor.sql`, se
 deja como registro). Solo hace falta publicar el código: `git add . && git commit && git push`.
@@ -323,31 +323,37 @@ adjuntar por correo o WhatsApp tal cual.
 
 ---
 
-## 3. WhatsApp: una sola pestaña, y copiar números
+## 3. WhatsApp: elige cómo se abre, y copiar números
 
-### El problema de las pestañas
+### Tres formas de abrir WhatsApp, y cuál conviene
 
 WhatsApp Web no admite dos pestañas a la vez: al abrir la segunda, la primera queda desconectada.
 Antes cada cliente abría su propia pestaña, así que en una campaña de 40 quedaban 40 pestañas y
 había que ir cerrando la anterior a mano.
 
-Ahora **todos los clientes usan la misma pestaña**: el siguiente reemplaza al anterior ahí mismo.
-No se corta la sesión ni se acumula nada. Aplica en Campañas, Clientes, Catálogos y Cumpleaños.
+En **Campañas** hay un selector de tres modos. Se guarda **por PC**, así que cada tienda puede
+usar el que le sirva sin afectar a las demás:
 
-De paso, en PC se abre directo en `web.whatsapp.com` en vez de pasar por la pantalla intermedia de
-`wa.me` ("Continuar al chat"), que era un clic extra por cada cliente. En celular sigue abriendo la
-app, como antes.
+| Modo | Qué hace | Cuándo usarlo |
+|---|---|---|
+| **App de escritorio** | Abre el chat en la aplicación de WhatsApp instalada. No toca el navegador y **no recarga nada**: solo salta de conversación, al instante. | El mejor para campañas largas. Necesita WhatsApp para Windows instalado (gratis, en whatsapp.com/download). |
+| **WhatsApp Web** | Usa siempre la misma pestaña; el cliente siguiente reemplaza al anterior, así no se acumulan ni se desconecta la sesión. | PCs donde no se puede instalar nada. Ojo: cada cliente recarga WhatsApp Web entero, unos segundos por persona. |
+| **Solo copiar** | El CRM no abre nada. Copias el número y el mensaje y los pegas en el WhatsApp que ya tienes abierto. | Cuando no quieres que nada toque tu sesión. Son más pasos a mano, pero cero recargas. |
 
-*(Detalle técnico, por si alguien toca el código: esto funciona porque los enlaces usan un nombre
-de ventana en vez de `_blank`. Si alguien les vuelve a poner `rel="noopener"`, el navegador ignora
-el nombre y regresan las pestañas sueltas. Está explicado en `src/lib/whatsapp.js`.)*
+Si estás en **App de escritorio** y al hacer clic no pasa nada, es que esa PC no tiene la
+aplicación instalada: cambia a **WhatsApp Web** con el mismo selector.
+
+En modo copiar, el botón verde de las listas se convierte en **Copiar mensaje**, y en la campaña
+paso a paso el botón principal pasa a ser **"Ya se lo envié · siguiente"**, que registra el envío
+igual que antes — así el tope diario de 40 por tienda y el marcado de catálogos siguen cuadrando.
+
+En el celular todo sigue igual: se abre la app de WhatsApp, como siempre.
 
 ### Copiar números
 
 Al costado de cada teléfono hay un botón de copiar (dice **Copiar** donde entra, y es solo un
 ícono donde el espacio es corto). Copia el número sin espacios, listo para pegar en el buscador de
-WhatsApp Web que ya tengas abierto. Está en Clientes (tabla y ficha), Cumpleaños, Catálogos,
-Campañas, Reportes y el Resumen.
+WhatsApp. Está en Clientes (tabla y ficha), Cumpleaños, Catálogos, Campañas, Reportes y el Resumen.
 
-En el modo de envío de Campañas además hay **Copiar mensaje**, por si prefieres pegar todo a mano
-en lugar de que el CRM abra la conversación.
+En el modo de envío de Campañas además hay **Copiar mensaje**, siempre disponible sin importar el
+modo elegido.

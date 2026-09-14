@@ -9,7 +9,7 @@ import {
   paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
-import { VENTANA_WHATSAPP, alHacerClicWhatsApp } from "@/lib/whatsapp";
+import { BotonWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
@@ -211,19 +211,13 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
 
       {telefonoEsValido(c.telefono) ? (
         mandarWhatsApp ? (
-          <a
-            href={enlaceWhatsApp(c.telefono, texto)}
-            // Pestaña de WhatsApp reutilizable (ver src/lib/whatsapp.js)
-            target={VENTANA_WHATSAPP}
-            onClick={(e) => {
-              registrarEnvio(c, "cumpleanos");
-              alHacerClicWhatsApp(e, c.telefono, texto);
-            }}
+          <BotonWhatsApp
+            telefono={c.telefono}
+            texto={texto}
+            etiqueta="Enviar saludo"
             className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
-          >
-            <IconoWhatsApp />
-            Enviar saludo
-          </a>
+            alEnviar={() => registrarEnvio(c, "cumpleanos")}
+          />
         ) : (
           <BotonCopiar
             variante="boton"

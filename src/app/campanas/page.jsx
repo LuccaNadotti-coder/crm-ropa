@@ -11,7 +11,8 @@ import {
   TOPE_DIARIO, enviosDeHoyPorTienda, registrarEnvio, restantesHoy,
 } from "@/lib/envios";
 import { veTodasLasTiendas, puedeEnviarWhatsApp } from "@/lib/permisos";
-import { abrirWhatsApp, enlaceParaEsteEquipo } from "@/lib/whatsapp";
+import { abrirWhatsApp, useModoWhatsApp, MODO_COPIAR, MODO_APP } from "@/lib/whatsapp";
+import { SelectorModoWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
@@ -83,6 +84,8 @@ function SinPermiso() {
 function Contenido({ perfil }) {
   const avisos = useAvisos();
   const verTodo = veTodasLasTiendas(perfil);
+  const modo = useModoWhatsApp();
+  const soloCopiar = modo === MODO_COPIAR;
 
   const [clientes, setClientes] = useState([]);
   const [enviosMes, setEnviosMes] = useState({});
@@ -260,19 +263,23 @@ function Contenido({ perfil }) {
     }
   };
 
+  /**
+   * Da por contactado al cliente actual y pasa al siguiente.
+   *
+   * En los modos "app" y "web" además abre la conversación; en modo copiar no
+   * abre nada, porque el usuario ya pegó el mensaje a mano y este botón es solo
+   * la confirmación de que lo mandó.
+   */
   const enviar = async () => {
     if (!actual) return;
-    const enlace = enlaceWhatsApp(actual.telefono, armarMensaje(actual));
-    if (!enlace) {
+    if (!telefonoEsValido(actual.telefono)) {
       avisos.error(`${actual.nombre} no tiene un teléfono válido.`);
       avanzar(contactados);
       return;
     }
 
     // Se abre primero: window.open solo funciona dentro del clic del usuario.
-    // Va siempre a la MISMA pestaña (ver src/lib/whatsapp.js), así WhatsApp Web
-    // no se desconecta y no quedan 40 pestañas abiertas al final de la campaña.
-    abrirWhatsApp(enlaceParaEsteEquipo(actual.telefono, armarMensaje(actual)) || enlace);
+    if (!soloCopiar) abrirWhatsApp(actual.telefono, armarMensaje(actual), modo);
 
     const nuevos = [...contactados, actual.id];
     setContactados(nuevos);
@@ -281,7 +288,7 @@ function Contenido({ perfil }) {
     const tiendaActual = actual.tienda || "Sin tienda";
     setEnviadosHoy((prev) => ({ ...prev, [tiendaActual]: (prev[tiendaActual] || 0) + 1 }));
     registrarEnvio(actual, "campana").then((ok) => {
-      if (!ok) avisos.error("El envío se abrió, pero no se pudo registrar en el conteo del día.");
+      if (!ok) avisos.error("El envío se hizo, pero no se pudo registrar en el conteo del día.");
     });
 
     if (marcarCatalogo && !enviosMes[actual.id]) {
@@ -324,6 +331,7 @@ function Contenido({ perfil }) {
         usadosHoy={enviadosHoy[tiendaActual] || 0}
         restantes={restantesHoy(enviadosHoy, tiendaActual)}
         tienda={tiendaActual}
+        modo={modo}
         onEnviar={enviar}
         onSaltar={saltar}
         onTerminar={terminar}
@@ -514,6 +522,10 @@ function Contenido({ perfil }) {
               </details>
             )}
 
+            <div className="mb-4 border-t border-borde pt-4">
+              <SelectorModoWhatsApp />
+            </div>
+
             <button
               onClick={iniciar}
               disabled={destinatarios.length === 0 || !mensaje.trim() || cupoTotal === 0}
@@ -524,12 +536,10 @@ function Contenido({ perfil }) {
             </button>
 
             <p className="mt-3 text-xs leading-relaxed text-ink-faint">
-              WhatsApp no permite enviar en bloque desde fuera de su app. Esto te abre cada
+              WhatsApp no permite enviar en bloque desde fuera de su app. Esto te prepara cada
               conversación con el mensaje ya escrito y va llevando la cuenta: tú solo das
-              enviar y pasas al siguiente. Todos los clientes usan <strong>una sola
-              pestaña</strong>, que se va reemplazando sola. Cada tienda envía desde el
-              WhatsApp que tenga abierto en su propio equipo, y el tope de {TOPE_DIARIO} es
-              por tienda y por día.
+              enviar y pasas al siguiente. Cada tienda escribe desde el WhatsApp que tenga
+              abierto en su propio equipo, y el tope de {TOPE_DIARIO} es por tienda y por día.
             </p>
 
             {destinatarios.length > 0 && (
@@ -599,10 +609,11 @@ function Contenido({ perfil }) {
 
 function ModoEnvio({
   cliente, mensaje, indice, total, contactados, marcarCatalogo, mesNombre,
-  usadosHoy, restantes, tienda, onEnviar, onSaltar, onTerminar,
+  usadosHoy, restantes, tienda, modo, onEnviar, onSaltar, onTerminar,
 }) {
   const botonRef = useRef(null);
   const enTope = restantes <= 0;
+  const soloCopiar = modo === MODO_COPIAR;
 
   // El botón queda enfocado para poder avanzar con Enter sin usar el mouse.
   useEffect(() => { botonRef.current?.focus(); }, [cliente?.id]);
@@ -644,7 +655,9 @@ function ModoEnvio({
 
         <div className="my-5">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="etiqueta">Mensaje que se va a enviar</p>
+            <p className="etiqueta">
+              {soloCopiar ? "Mensaje para pegar" : "Mensaje que se va a enviar"}
+            </p>
             <BotonCopiar texto={mensaje} etiqueta="Copiar mensaje" etiquetaCopiada="Copiado" />
           </div>
           <div className="whitespace-pre-wrap rounded-lg rounded-tl-none bg-exito-soft p-4 text-sm leading-relaxed text-ink-soft">
@@ -683,17 +696,26 @@ function ModoEnvio({
             disabled={enTope}
             className="btn-excel flex-1"
           >
-            <IconoWhatsApp />
-            {enTope ? `Tope alcanzado` : "Abrir WhatsApp y seguir"}
+            {!soloCopiar && <IconoWhatsApp />}
+            {enTope
+              ? "Tope alcanzado"
+              : soloCopiar
+                ? "Ya se lo envié · siguiente"
+                : "Abrir WhatsApp y seguir"}
             {!enTope && <IconoFlecha />}
           </button>
         </div>
 
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-faint">
-          Cada cliente reemplaza al anterior en la misma pestaña de WhatsApp, así
-          no se corta la sesión ni se acumulan pestañas. Si prefieres pegar a
-          mano, usa <strong>Copiar mensaje</strong> y el botón junto al número.
-        </p>
+        <div className="mt-4 border-t border-borde pt-4">
+          <SelectorModoWhatsApp compacto />
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+            {soloCopiar
+              ? "El CRM no abre nada: copia el número y el mensaje, pégalos en tu WhatsApp y confirma con el botón verde para que el envío quede contado."
+              : modo === MODO_APP
+                ? "Se abre la app de escritorio, que no recarga nada. Si no pasa nada al hacer clic, es que no está instalada en esta PC: cambia a WhatsApp Web."
+                : "Todos los clientes usan la misma pestaña de WhatsApp Web, pero se recarga con cada uno. Con la app de escritorio el salto es instantáneo."}
+          </p>
+        </div>
       </div>
 
       <button onClick={onTerminar} className="btn-fantasma mx-auto mt-4 block">
