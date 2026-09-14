@@ -226,10 +226,11 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
           </a>
         ) : (
           <BotonCopiar
+            variante="boton"
             texto={texto}
             etiqueta="Copiar el saludo"
             etiquetaCopiada="Saludo copiado"
-            className="mt-4"
+            className="mt-4 w-full"
           />
         )
       ) : (

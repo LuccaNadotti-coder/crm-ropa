@@ -209,6 +209,7 @@ function Contenido({ perfil }) {
         generado: new Date().toLocaleString("es-PE"),
         alcance,
         mesEtiqueta: datosMes?.etiquetaLarga || mesActivo,
+        mesClave: mesActivo,
         kpis: [
           { etiqueta: "Clientes registrados", valor: enAlcance.length, detalle: alcance },
           {
@@ -305,32 +306,37 @@ function Contenido({ perfil }) {
 
   return (
     <div className="space-y-5">
-      <div className="carta flex flex-wrap items-center gap-3 p-4">
-        {verTodo && (
-          <>
-            <span className="etiqueta">Tienda</span>
-            <select className="input w-auto" value={filtroTienda} onChange={(e) => setFiltroTienda(e.target.value)}>
+      <div className="carta flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          {verTodo && (
+            <select
+              className="input w-auto"
+              value={filtroTienda}
+              onChange={(e) => setFiltroTienda(e.target.value)}
+              aria-label="Filtrar por tienda"
+            >
               <option value="">Todas las tiendas</option>
               {TIENDAS.map((t) => <option key={t}>{t}</option>)}
             </select>
-          </>
-        )}
-        <span className="text-sm text-ink-mute">
-          {enAlcance.length} clientes en total
-        </span>
+          )}
+          <p className="text-sm text-ink-mute">
+            <strong className="tabular-nums text-ink">{enAlcance.length}</strong> clientes
+            {filtroTienda ? ` en ${filtroTienda}` : " en total"}
+          </p>
+        </div>
 
-        <div className="ml-auto flex flex-col items-end gap-1">
+        <div className="flex items-center gap-3">
+          <p className="hidden text-right text-[11px] leading-tight text-ink-faint sm:block">
+            Todos los gráficos de esta página<br />en un archivo que se imprime en PDF
+          </p>
           <button
             onClick={exportarDashboard}
             disabled={armandoDashboard || !mesActivo}
-            className="btn-primario btn-sm"
+            className="btn-primario shrink-0"
           >
-            <IconoDescargar size={15} />
+            <IconoDescargar size={16} />
             {armandoDashboard ? "Armando..." : "Exportar dashboard"}
           </button>
-          <span className="text-[11px] text-ink-faint">
-            Archivo con todos los gráficos · se imprime en PDF
-          </span>
         </div>
       </div>
 

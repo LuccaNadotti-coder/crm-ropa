@@ -39,19 +39,28 @@ export function Insignia({ children, tono = "neutro", className = "" }) {
 
 /* ------------------------------------------------------------------ KPI */
 
+/**
+ * El filete de color arriba es el mismo recurso que usa el dashboard
+ * exportable, para que lo impreso y lo que se ve en pantalla se lean como
+ * una sola cosa.
+ */
 export function TarjetaKpi({ etiqueta, valor, detalle, icono, tono = "ink", cargando }) {
   const colorValor = { ink: "text-ink", wine: "text-wine", brass: "text-brass-dark", exito: "text-exito" }[tono];
+  const filete = { ink: "bg-ink", wine: "bg-wine", brass: "bg-brass", exito: "bg-exito" }[tono];
   return (
-    <div className="carta p-5">
+    <div className="carta relative overflow-hidden p-5">
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-[3px] ${filete} opacity-90`} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="etiqueta">{etiqueta}</p>
           {cargando ? (
             <div className="esqueleto mt-2 h-9 w-20" />
           ) : (
-            <p className={`mt-1 text-3xl font-bold tabular-nums ${colorValor}`}>{valor}</p>
+            <p className={`mt-1.5 text-[32px] font-bold leading-none tracking-tight tabular-nums ${colorValor}`}>
+              {valor}
+            </p>
           )}
-          {detalle && !cargando && <p className="mt-1 text-xs text-ink-mute">{detalle}</p>}
+          {detalle && !cargando && <p className="mt-2 text-xs text-ink-mute">{detalle}</p>}
         </div>
         {icono && (
           <div className="shrink-0 rounded-lg bg-cream p-2 text-ink-mute">{icono}</div>
@@ -235,10 +244,11 @@ export function BotonCopiar({
   etiquetaCopiada = "Copiado",
   descripcion,
   soloIcono = false,
+  variante = "chip", // "chip" dentro de listas y tablas; "boton" cuando va solo
   className = "",
 }) {
   const [copiado, setCopiado] = useState(false);
-  const [fallo, setFalló] = useState(false);
+  const [fallo, setFallo] = useState(false);
   const temporizador = useRef(null);
 
   useEffect(() => () => clearTimeout(temporizador.current), []);
@@ -248,9 +258,9 @@ export function BotonCopiar({
     e.stopPropagation();
     const listo = await copiarAlPortapapeles(texto);
     setCopiado(listo);
-    setFalló(!listo);
+    setFallo(!listo);
     clearTimeout(temporizador.current);
-    temporizador.current = setTimeout(() => { setCopiado(false); setFalló(false); }, 1600);
+    temporizador.current = setTimeout(() => { setCopiado(false); setFallo(false); }, 1600);
   };
 
   if (!texto) return null;
@@ -259,35 +269,48 @@ export function BotonCopiar({
     ? "El navegador no permitió copiar"
     : descripcion || `Copiar ${texto}`;
 
+  const estado = copiado
+    ? "border-exito/35 bg-exito-soft text-exito"
+    : fallo
+      ? "border-alerta/35 bg-alerta-soft text-alerta"
+      : "border-borde bg-white text-ink-mute hover:border-brass hover:bg-cream hover:text-ink";
+
+  // El chip es deliberadamente chico: va pegado al número dentro de celdas
+  // angostas, y si crece parte el teléfono en varias líneas.
+  const forma = variante === "boton"
+    ? "btn btn-contorno gap-2"
+    : `inline-flex items-center gap-1 rounded-md border px-2 py-[3px] text-[11px] font-semibold ${
+        soloIcono ? "px-1.5" : ""
+      }`;
+
   return (
     <button
       type="button"
       onClick={copiar}
       title={titulo}
       aria-label={titulo}
-      className={`btn btn-sm shrink-0 gap-1 ${
-        copiado
-          ? "bg-exito-soft text-exito"
-          : fallo
-            ? "bg-alerta-soft text-alerta"
-            : "border border-borde bg-white text-ink-mute hover:bg-cream hover:text-ink"
-      } ${soloIcono ? "px-2" : ""} ${className}`}
+      className={`shrink-0 whitespace-nowrap align-middle transition-colors ${forma} ${
+        variante === "boton" && copiado ? "border-exito/35 bg-exito-soft text-exito" : ""
+      } ${variante === "chip" ? estado : ""} ${className}`}
     >
-      {copiado ? <IconoCheck size={13} /> : <IconoCopiar size={13} />}
+      {copiado ? <IconoCheck size={variante === "boton" ? 16 : 12} /> : <IconoCopiar size={variante === "boton" ? 16 : 12} />}
       {!soloIcono && <span>{fallo ? "No se pudo" : copiado ? etiquetaCopiada : etiqueta}</span>}
     </button>
   );
 }
 
 /**
- * Teléfono + botón de copiar, que es la combinación que se repite en casi
- * todas las pantallas. Se copia sin espacios porque así se pega directo en
- * el buscador de WhatsApp.
+ * Teléfono + botón de copiar, la combinación que se repite en casi todas las
+ * pantallas. Se copia sin espacios porque así se pega directo en el buscador
+ * de WhatsApp.
+ *
+ * whitespace-nowrap en todo el bloque: en la tabla de Clientes la columna es
+ * angosta y sin esto el número salía partido en tres líneas (953 / 501 / 175).
  */
 export function TelefonoCopiable({ telefono, className = "", soloIcono = false, legible = true }) {
   const digitos = soloNumeros(telefono);
   return (
-    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${className}`}>
       <span className="tabular-nums">{legible ? telefonoLegible(telefono) : digitos || "—"}</span>
       {digitos && (
         <BotonCopiar

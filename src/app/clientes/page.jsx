@@ -334,11 +334,11 @@ function Contenido({ perfil }) {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td className="whitespace-nowrap">
                         {telefonoEsValido(c.telefono) ? (
                           <TelefonoCopiable telefono={c.telefono} className="text-ink-mute" />
                         ) : (
-                          <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                             <span className="font-medium tabular-nums text-wine" title="No es un celular válido: WhatsApp no abrirá.">
                               {c.telefono || "—"} ⚠
                             </span>
@@ -760,6 +760,7 @@ function FichaCliente({
             </a>
           )}
           <BotonCopiar
+            variante="boton"
             texto={soloNumeros(cliente.telefono)}
             etiqueta="Copiar número"
             etiquetaCopiada="Número copiado"
