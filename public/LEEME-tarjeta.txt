@@ -12,8 +12,10 @@ Cumpleaños aparece el botón "Copiar tarjeta y escribir": el CRM le escribe
 encima el nombre de quien cumple, deja la imagen copiada y abre el chat con el
 texto ya listo. La persona solo pega con Ctrl+V y envía.
 
-Mientras el archivo no exista, la app sigue funcionando igual que siempre, solo
-con el texto. No se rompe nada.
+Mientras el archivo no exista, el CRM DIBUJA la tarjeta el solo: fondo vino,
+cupon crema con borde ondeado, mono dorado, 15% OFF y el nombre de quien
+cumple. O sea que ya funciona sin que nadie suba nada; el archivo solo sirve
+si prefieren usar su propio diseno (por ejemplo el de Canva).
 
 Recomendaciones para el archivo:
   - PNG (o JPG), lo más grande que exporte tu editor: 1080 px de ancho o más.
