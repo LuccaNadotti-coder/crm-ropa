@@ -42,6 +42,41 @@ export async function copiarAlPortapapeles(texto) {
   }
 }
 
+/**
+ * Copia una imagen al portapapeles, para pegarla con Ctrl+V en WhatsApp.
+ *
+ * Solo funciona en HTTPS (Vercel sí; una IP local de la tienda no) y necesita
+ * que la pestaña tenga el foco: por eso hay que copiar ANTES de abrir el chat,
+ * nunca después. Si el navegador no deja, el que llama ofrece descargarla.
+ *
+ * El valor va como promesa porque es la forma que aceptan todos los
+ * navegadores; algunos rechazan el Blob suelto.
+ */
+export async function copiarImagenAlPortapapeles(blob) {
+  if (!blob) return false;
+  try {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") return false;
+    await navigator.clipboard.write([
+      new ClipboardItem({ [blob.type || "image/png"]: Promise.resolve(blob) }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Descarga un Blob ya armado (la tarjeta, cuando no se pudo copiar). */
+export function descargarBlob(nombre, blob) {
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Descarga un archivo generado en el navegador (el dashboard exportable). */
 export function descargarArchivo(nombre, contenido, tipo = "text/html;charset=utf-8") {
   const blob = new Blob([contenido], { type: tipo });

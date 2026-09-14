@@ -124,3 +124,14 @@ export function telefonoLegible(telefono) {
   if (d.length === 9) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
   return d || "—";
 }
+
+/**
+ * Nombre de pila presentable: "MARIA FERNANDA PEREZ" -> "Maria".
+ * Los nombres se guardan en mayúsculas, y un WhatsApp que empieza con
+ * "Hola MARIA FERNANDA PEREZ LOPEZ" se lee como un grito y como un formulario.
+ */
+export function nombrePila(nombre) {
+  const primero = normalizarTexto(nombre).split(" ").filter(Boolean)[0] || "";
+  if (!primero) return "";
+  return primero.charAt(0).toUpperCase() + primero.slice(1).toLowerCase();
+}

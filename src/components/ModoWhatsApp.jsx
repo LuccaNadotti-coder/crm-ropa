@@ -65,6 +65,7 @@ export function BotonWhatsApp({
   claseCopiar = "",
   claseEtiqueta = "",
   alEnviar,
+  preparar,
 }) {
   const modo = useModoWhatsApp();
   if (!telefonoEsValido(telefono)) return null;
@@ -89,7 +90,15 @@ export function BotonWhatsApp({
       href={enlaceWhatsApp(telefono, texto)}
       // Ventana con nombre, no _blank, y sin rel="noopener" (ver lib/whatsapp.js).
       target={VENTANA_WHATSAPP}
-      onClick={(e) => {
+      onClick={async (e) => {
+        // preparar corre ANTES de abrir el chat porque es donde se copia la
+        // tarjeta: el portapapeles solo acepta escrituras con la pestaña en
+        // foco, y al abrir WhatsApp el foco se va. Son milisegundos, así que
+        // el permiso del clic sigue vigente cuando toca abrir.
+        if (preparar) {
+          e.preventDefault();
+          await preparar();
+        }
         alEnviar?.();
         alHacerClicWhatsApp(e, telefono, texto, modo);
       }}

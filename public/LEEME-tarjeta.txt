@@ -1,0 +1,26 @@
+TARJETA DE CUMPLEAÑOS
+=====================
+
+Acá va el diseño del cupón que el CRM le manda a cada cliente en su cumpleaños.
+
+El archivo tiene que llamarse EXACTAMENTE:
+
+    tarjeta-cumpleanos.png
+
+Ponlo en esta misma carpeta (public). En cuanto esté, en la pantalla de
+Cumpleaños aparece el botón "Copiar tarjeta y escribir": el CRM le escribe
+encima el nombre de quien cumple, deja la imagen copiada y abre el chat con el
+texto ya listo. La persona solo pega con Ctrl+V y envía.
+
+Mientras el archivo no exista, la app sigue funcionando igual que siempre, solo
+con el texto. No se rompe nada.
+
+Recomendaciones para el archivo:
+  - PNG (o JPG), lo más grande que exporte tu editor: 1080 px de ancho o más.
+  - De preferencia SIN el nombre de ejemplo. Si lo trae, el CRM lo tapa con el
+    mismo color del cupón, pero queda más limpio sin él.
+  - Si cambias el diseño (otra promoción, otro mes), reemplaza este archivo y
+    listo: no hay que tocar código.
+
+La posición y el tamaño del nombre se calibran en un solo lugar:
+src/lib/tarjeta-cumple.js, en la constante DISENO.

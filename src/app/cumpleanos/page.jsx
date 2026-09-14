@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { registrarEnvio } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido,
+  paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombrePila,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { copiarImagenAlPortapapeles, descargarBlob } from "@/lib/portapapeles";
+import {
+  hayTarjeta, generarTarjeta, primerNombre, nombreArchivoTarjeta,
+} from "@/lib/tarjeta-cumple";
 import { BotonWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
 import { useAvisos } from "@/components/Avisos";
 import {
   Avatar, Insignia, TarjetaKpi, EstadoVacio, FilasEsqueleto, TelefonoCopiable, BotonCopiar,
-  IconoTorta, IconoWhatsApp, IconoBuscar, IconoX,
+  Modal, IconoTorta, IconoWhatsApp, IconoBuscar, IconoX, IconoDescargar, IconoCopiar,
 } from "@/components/ui";
 
 const RANGOS = [
@@ -177,13 +181,52 @@ function Contenido({ perfil }) {
 }
 
 function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp, marcandoId, onMarcar }) {
+  const avisos = useAvisos();
   const esHoy = c.dias_faltantes === 0;
   const edad = edadDesde(c.fecha_nacimiento);
   const cumpleAnios = edad != null ? edad + (esHoy ? 0 : 1) : null;
 
+  // En el mensaje va el nombre de pila, no el completo en mayúsculas: queda
+  // igual que en la tarjeta y se lee como un saludo, no como un grito.
+  const pila = nombrePila(c.nombre);
   const texto = esHoy
-    ? `Hola ${c.nombre}, ¡feliz cumpleaños de nuestra parte! 🎉 Tienes 10% de descuento toda esta semana.`
-    : `Hola ${c.nombre}, ¡pronto es tu cumpleaños! 🎂 Te esperamos con un descuento especial.`;
+    ? `Hola ${pila}, ¡feliz cumpleaños de nuestra parte! 🎉 Tienes 15% de descuento toda esta semana.`
+    : `Hola ${pila}, ¡pronto es tu cumpleaños! 🎂 Te esperamos con un descuento especial.`;
+
+  /* ------------------------------------------------------------ Tarjeta */
+
+  const [tarjetaDisponible, setTarjetaDisponible] = useState(false);
+  const [vistaAbierta, setVistaAbierta] = useState(false);
+  const [vistaUrl, setVistaUrl] = useState(null);
+  const blobRef = useRef(null);
+
+  useEffect(() => { hayTarjeta().then(setTarjetaDisponible); }, []);
+  useEffect(() => () => { if (vistaUrl) URL.revokeObjectURL(vistaUrl); }, [vistaUrl]);
+
+  /**
+   * Deja la tarjeta copiada justo antes de abrir el chat. WhatsApp no admite
+   * imágenes en el enlace, así que este es el único camino: copiar acá y que
+   * la persona pegue con Ctrl+V.
+   */
+  const copiarTarjeta = async () => {
+    if (!tarjetaDisponible) return;
+    const blob = await generarTarjeta(c.nombre);
+    if (!blob) return;
+    blobRef.current = blob;
+    if (await copiarImagenAlPortapapeles(blob)) {
+      avisos.exito(`Tarjeta de ${primerNombre(c.nombre)} copiada. Pégala en el chat con Ctrl+V.`);
+    } else {
+      avisos.error("No se pudo copiar la tarjeta. Ábrela con “Ver tarjeta” y descárgala.");
+    }
+  };
+
+  const abrirVista = async () => {
+    const blob = blobRef.current || (await generarTarjeta(c.nombre));
+    if (!blob) return;
+    blobRef.current = blob;
+    setVistaUrl((previo) => { if (previo) URL.revokeObjectURL(previo); return URL.createObjectURL(blob); });
+    setVistaAbierta(true);
+  };
 
   return (
     <article className={`carta flex flex-col p-5 ${esHoy ? "border-wine/30 bg-wine text-white" : ""}`}>
@@ -214,9 +257,10 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
           <BotonWhatsApp
             telefono={c.telefono}
             texto={texto}
-            etiqueta="Enviar saludo"
+            etiqueta={tarjetaDisponible ? "Copiar tarjeta y escribir" : "Enviar saludo"}
             className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
             alEnviar={() => registrarEnvio(c, "cumpleanos")}
+            preparar={tarjetaDisponible ? copiarTarjeta : undefined}
           />
         ) : (
           <BotonCopiar
@@ -232,6 +276,62 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
           Teléfono inválido · no se puede enviar
         </p>
       )}
+
+      {tarjetaDisponible && (
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <button
+            onClick={abrirVista}
+            className={`text-[11px] font-semibold underline-offset-2 hover:underline ${
+              esHoy ? "text-white/80" : "text-ink-mute"
+            }`}
+          >
+            Ver tarjeta de {primerNombre(c.nombre)}
+          </button>
+          <span className={`text-[11px] ${esHoy ? "text-white/60" : "text-ink-faint"}`}>
+            luego Ctrl+V en el chat
+          </span>
+        </div>
+      )}
+
+      <Modal
+        abierto={vistaAbierta}
+        onCerrar={() => setVistaAbierta(false)}
+        titulo={`Tarjeta de ${primerNombre(c.nombre)}`}
+        descripcion="Así le va a llegar. Cópiala y pégala en el chat con Ctrl+V."
+        ancho="max-w-sm"
+      >
+        {vistaUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={vistaUrl}
+            alt={`Tarjeta de cumpleaños de ${primerNombre(c.nombre)}`}
+            className="mx-auto w-full max-w-[300px] rounded-lg border border-borde"
+          />
+        )}
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={async () => {
+              if (await copiarImagenAlPortapapeles(blobRef.current)) {
+                avisos.exito("Tarjeta copiada. Pégala con Ctrl+V.");
+                setVistaAbierta(false);
+              } else {
+                avisos.error("Este navegador no dejó copiar la imagen. Descárgala y arrástrala al chat.");
+              }
+            }}
+            className="btn-primario flex-1"
+          >
+            <IconoCopiar size={16} />
+            Copiar tarjeta
+          </button>
+          <button
+            onClick={() => blobRef.current && descargarBlob(nombreArchivoTarjeta(c.nombre), blobRef.current)}
+            className="btn-contorno"
+          >
+            <IconoDescargar size={16} />
+            Descargar
+          </button>
+        </div>
+      </Modal>
 
       <div className={`mt-4 space-y-2 border-t pt-3 ${esHoy ? "border-white/20" : "border-borde"}`}>
         <Casilla
