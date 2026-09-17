@@ -10,7 +10,10 @@ import {
 import {
   TOPE_DIARIO, enviosDeHoyPorTienda, registrarEnvio, restantesHoy,
 } from "@/lib/envios";
-import { veTodasLasTiendas, puedeEnviarWhatsApp } from "@/lib/permisos";
+import { veTodasLasTiendas, puedeEnviarWhatsApp, esAdmin } from "@/lib/permisos";
+import {
+  adjuntoActual, subirAdjunto, quitarAdjunto, enlaceCorto, pesoLegible, TIPOS_ACEPTADOS,
+} from "@/lib/adjunto-campana";
 import { abrirWhatsApp, useModoWhatsApp, MODO_COPIAR, MODO_APP } from "@/lib/whatsapp";
 import { SelectorModoWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
@@ -98,6 +101,13 @@ function Contenido({ perfil }) {
   const [mensaje, setMensaje] = useState(PLANTILLAS[0].texto);
   const [marcarCatalogo, setMarcarCatalogo] = useState(true);
 
+  // Archivo de la campaña: uno solo para todas las tiendas.
+  const [adjunto, setAdjunto] = useState(null);
+  const [adjuntarEnlace, setAdjuntarEnlace] = useState(true);
+  const [subiendo, setSubiendo] = useState(false);
+  const archivoRef = useRef(null);
+  const puedeCambiarAdjunto = esAdmin(perfil);
+
   const [enCurso, setEnCurso] = useState(false);
   const [indice, setIndice] = useState(0);
   const [contactados, setContactados] = useState([]);
@@ -134,6 +144,42 @@ function Contenido({ perfil }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // El adjunto se pide aparte: es una sola consulta al almacenamiento y no
+  // tiene por qué demorar la lista de clientes.
+  useEffect(() => { adjuntoActual().then(setAdjunto); }, []);
+
+  const elegirArchivo = async (e) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+    setSubiendo(true);
+    try {
+      const nuevo = await subirAdjunto(archivo);
+      setAdjunto(nuevo);
+      setAdjuntarEnlace(true);
+      avisos.exito("Archivo subido. Todas las tiendas van a mandar este mismo.");
+    } catch (err) {
+      avisos.error(
+        err.message?.includes("Bucket not found")
+          ? "Falta preparar el almacenamiento en Supabase (migración v6)."
+          : "No se pudo subir el archivo: " + err.message
+      );
+    }
+    setSubiendo(false);
+  };
+
+  const sacarArchivo = async () => {
+    setSubiendo(true);
+    try {
+      await quitarAdjunto();
+      setAdjunto(null);
+      avisos.exito("La campaña queda sin archivo.");
+    } catch (err) {
+      avisos.error("No se pudo quitar el archivo: " + err.message);
+    }
+    setSubiendo(false);
+  };
 
   // Si el navegador se cerró a mitad de una campaña, se puede retomar.
   useEffect(() => {
@@ -198,11 +244,14 @@ function Contenido({ perfil }) {
     (suma, t) => suma + Math.min(t.enLista, t.quedan), 0
   );
 
-  const armarMensaje = (c) =>
-    (mensaje || "")
+  const armarMensaje = (c) => {
+    const base = (mensaje || "")
       .replaceAll("{nombre}", c.nombre || "")
       .replaceAll("{tienda}", (c.tienda || "SFIDA").replace(" SFIDA", ""))
       .replaceAll("{cumple}", diaYMes(c.fecha_nacimiento));
+    if (!adjunto || !adjuntarEnlace) return base;
+    return `${base}\n\n${adjunto.esPdf ? "Descárgalo aquí" : "Míralo aquí"}: ${enlaceCorto()}`;
+  };
 
   const cambiarPlantilla = (id) => {
     setPlantillaId(id);
@@ -450,6 +499,76 @@ function Contenido({ perfil }) {
                 </div>
               </div>
             )}
+
+            {/* Archivo de la campaña */}
+            <div className="mt-4 rounded-lg border border-borde p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="etiqueta">Archivo de la campaña</p>
+                  {adjunto ? (
+                    <p className="mt-0.5 truncate text-sm text-ink-soft">
+                      {adjunto.esPdf ? "📄" : "🖼️"} {adjunto.nombre}
+                      {adjunto.tamano ? ` · ${pesoLegible(adjunto.tamano)}` : ""}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-sm text-ink-mute">
+                      {puedeCambiarAdjunto
+                        ? "Sube una imagen o un PDF y el mensaje llevará su enlace."
+                        : "El administrador todavía no subió ninguno."}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  {adjunto && (
+                    <a href={adjunto.url} target="_blank" rel="noopener noreferrer" className="btn-contorno btn-sm">
+                      <IconoOjo size={14} />
+                      Ver
+                    </a>
+                  )}
+                  {puedeCambiarAdjunto && (
+                    <>
+                      <input
+                        ref={archivoRef}
+                        type="file"
+                        accept={TIPOS_ACEPTADOS}
+                        onChange={elegirArchivo}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => archivoRef.current?.click()}
+                        disabled={subiendo}
+                        className="btn-contorno btn-sm"
+                      >
+                        {subiendo ? "Subiendo..." : adjunto ? "Cambiar" : "Subir archivo"}
+                      </button>
+                      {adjunto && (
+                        <button onClick={sacarArchivo} disabled={subiendo} className="btn-contorno btn-sm">
+                          Quitar
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {adjunto && (
+                <label className="mt-3 flex cursor-pointer items-start gap-2.5 border-t border-borde pt-3">
+                  <input
+                    type="checkbox"
+                    checked={adjuntarEnlace}
+                    onChange={(e) => setAdjuntarEnlace(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brass"
+                  />
+                  <span className="text-sm text-ink-soft">
+                    Agregar el enlace del archivo al final del mensaje
+                    <span className="block text-xs text-ink-faint">
+                      {enlaceCorto()} · si más adelante cambias el archivo, el mismo enlace muestra el nuevo.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
 
             <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg bg-cream p-3">
               <input type="checkbox" checked={marcarCatalogo} onChange={(e) => setMarcarCatalogo(e.target.checked)}
