@@ -8,21 +8,22 @@
  * la imagen COPIADA en el portapapeles en el mismo clic que abre el chat, para
  * que la persona solo apriete Ctrl+V.
  *
- * Acá se arma esa imagen. Hay dos caminos y el primero que exista gana:
+ * Acá se arma esa imagen. Hay dos diseños y se elige según la fecha:
  *
- *   1) Si alguien deja su diseño en public/tarjeta-cumpleanos.png, se usa ese:
- *      se tapa el nombre de ejemplo con el mismo crema del cupón y se escribe
- *      encima el de quien cumple. Sirve para cambiar la promoción sin tocar
- *      código: se reemplaza el archivo y listo.
+ *   - "proximo": el cupón de 15% OFF, para quien cumple en los próximos días.
+ *   - "feliz":   el "Happy Birthday" con flores, para quien cumple hoy.
  *
- *   2) Si no hay archivo, la tarjeta se DIBUJA acá completa. Así el CRM
- *      funciona solo, sin depender de que alguien suba nada.
+ * Los dos son imágenes en /public con un nombre de ejemplo (ZULEMA). Se tapa
+ * ese nombre con el color del fondo y se escribe encima el de quien cumple.
+ * Para cambiar un diseño se reemplaza la imagen y se recalibra su entrada en
+ * PLANTILLAS; nada más.
  *
- * Todo se dibuja en proporciones del lienzo, no en píxeles sueltos, para poder
- * cambiar la resolución en una sola línea.
+ * Si una imagen no carga, el cupón se DIBUJA acá completo, así el CRM nunca
+ * se queda sin tarjeta.
+ *
+ * Todo se mide en proporciones de la imagen, no en píxeles sueltos, para que
+ * la calibración siga sirviendo si se exporta el diseño más grande.
  */
-
-export const RUTA_PLANTILLA = "/tarjeta-cumpleanos.png";
 
 /** 4:5 es la proporción que WhatsApp muestra sin recortar en el chat. */
 const ANCHO = 1080;
@@ -43,36 +44,88 @@ const SERIF = 'Georgia, "Times New Roman", "Playfair Display", serif';
 const SANS = '"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
 
 /**
- * Calibración para el camino 1 (diseño propio en /public). Los valores están
- * puestos para el cupón "¡HOLA, ZULEMA! · 15% OFF": si cambia el diseño se
- * ajustan acá y en ningún otro lado.
+ * Calibración de cada diseño, medida sobre el nombre de ejemplo ZULEMA:
+ *
+ *   zonas         rectángulos que se tapan (solo el nombre, el resto del diseño queda)
+ *   muestra       punto vacío de donde se toma el color del fondo
+ *   centroX, base dónde va el nombre: centro horizontal y línea de apoyo
+ *   altoMayuscula alto de una mayúscula del original; de ahí sale el tamaño
+ *   anchoMaximo   si el nombre es largo, se achica hasta entrar acá
+ *
+ * Todo en fracción del ancho (x) o del alto (y) de la imagen.
  */
-export const DISENO = {
-  zona: { x: 0.10, y: 0.175, ancho: 0.80, alto: 0.155 },
-  muestra: { x: 0.5, y: 0.13 },
-  linea1: { texto: "¡HOLA,", y: 0.235 },
-  linea2: { y: 0.305 },
-  color: COLOR.vinoTexto,
-  anchoMaximo: 0.74,
-  tamanoBase: 0.085,
-  fuente: SERIF,
-  taparNombre: true,
+export const PLANTILLAS = {
+  proximo: {
+    ruta: "/tarjeta-cumple-proximo.jpg",
+    zonas: [{ x: 0.305, y: 0.26, ancho: 0.442, alto: 0.066 }],
+    muestra: { x: 0.221, y: 0.294 },
+    centroX: 0.525,
+    base: 0.3175,
+    altoMayuscula: 0.05,
+    anchoMaximo: 0.74,
+    sufijo: "!",
+    color: "#7A0A24",
+    fuente: { familia: "Bodoni Moda", archivo: "/fuentes/bodoni-moda-400.woff2" },
+  },
+  feliz: {
+    ruta: "/tarjeta-cumple-feliz.jpg",
+    zonas: [
+      { x: 0.3227, y: 0.3669, ancho: 0.3775, alto: 0.0531 },
+      // Franja fina sobre el nombre que se detiene antes de la cola de la "y"
+      // de "Birthday", que baja casi hasta tocarlo.
+      { x: 0.3227, y: 0.3635, ancho: 0.3420, alto: 0.0040 },
+    ],
+    muestra: { x: 0.265, y: 0.394 },
+    centroX: 0.5106,
+    base: 0.4144,
+    altoMayuscula: 0.04625,
+    anchoMaximo: 0.68,
+    sufijo: "",
+    color: "#7A0A24",
+    fuente: { familia: "Playfair Display", archivo: "/fuentes/playfair-display-400.woff2" },
+  },
 };
+
+/**
+ * Qué diseño le toca a cada cliente. El día del cumpleaños va el saludo;
+ * antes, el cupón (que vale los 7 días previos y el mismo día).
+ */
+export function tipoDeTarjeta(diasFaltantes) {
+  return diasFaltantes === 0 ? "feliz" : "proximo";
+}
 
 /* ------------------------------------------------------------- Plantilla */
 
-let promesaPlantilla = null;
+const cacheImagenes = {};
+const cacheFuentes = {};
 
-/** Carga el diseño propio una sola vez, si es que existe. */
-export function cargarPlantilla() {
-  if (promesaPlantilla) return promesaPlantilla;
-  promesaPlantilla = new Promise((resolver) => {
-    const img = new Image();
-    img.onload = () => resolver(img);
-    img.onerror = () => resolver(null);
-    img.src = RUTA_PLANTILLA;
-  });
-  return promesaPlantilla;
+/** Carga cada imagen una sola vez. Si no existe, devuelve null. */
+export function cargarPlantilla(tipo) {
+  const ruta = PLANTILLAS[tipo].ruta;
+  if (!cacheImagenes[ruta]) {
+    cacheImagenes[ruta] = new Promise((resolver) => {
+      const img = new Image();
+      img.onload = () => resolver(img);
+      img.onerror = () => resolver(null);
+      img.src = ruta;
+    });
+  }
+  return cacheImagenes[ruta];
+}
+
+/**
+ * El lienzo no espera a las fuentes: si se dibuja antes de que carguen, sale
+ * en la letra por defecto. Por eso se cargan a mano y recién después se escribe.
+ * Si falla, se sigue con Georgia en vez de dejar a nadie sin tarjeta.
+ */
+function cargarFuente({ familia, archivo }) {
+  if (!cacheFuentes[familia]) {
+    const cara = new FontFace(familia, `url(${archivo})`);
+    cacheFuentes[familia] = cara.load()
+      .then((lista) => { document.fonts.add(lista); return `"${familia}", ${SERIF}`; })
+      .catch(() => SERIF);
+  }
+  return cacheFuentes[familia];
 }
 
 /** Siempre hay tarjeta: si no hay archivo, se dibuja. */
@@ -359,8 +412,8 @@ function colorDeMuestra(ctx, x, y) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-function sobrePlantilla(plantilla, nombre) {
-  const saludado = primerNombre(nombre);
+function sobrePlantilla(plantilla, diseno, fuente, nombre) {
+  const texto = `${primerNombre(nombre)}${diseno.sufijo}`;
   const W = plantilla.naturalWidth;
   const H = plantilla.naturalHeight;
 
@@ -370,24 +423,25 @@ function sobrePlantilla(plantilla, nombre) {
   const ctx = lienzo.getContext("2d");
   ctx.drawImage(plantilla, 0, 0, W, H);
 
-  if (DISENO.taparNombre) {
-    // El color se TOMA de la imagen en vez de escribirlo a mano: así el parche
-    // calza exacto aunque el diseño cambie de tono.
-    ctx.fillStyle = colorDeMuestra(ctx, DISENO.muestra.x * W, DISENO.muestra.y * H);
-    ctx.fillRect(DISENO.zona.x * W, DISENO.zona.y * H, DISENO.zona.ancho * W, DISENO.zona.alto * H);
+  // El color se TOMA de la imagen en vez de escribirlo a mano: así el parche
+  // calza exacto aunque el diseño cambie de tono.
+  ctx.fillStyle = colorDeMuestra(ctx, diseno.muestra.x * W, diseno.muestra.y * H);
+  for (const zona of diseno.zonas) {
+    ctx.fillRect(zona.x * W, zona.y * H, zona.ancho * W, zona.alto * H);
   }
 
-  ctx.fillStyle = DISENO.color;
+  // Tamaño de letra para que la mayúscula mida lo mismo que en el original,
+  // sea cual sea la fuente.
+  ctx.font = `100px ${fuente}`;
+  const altoA100 = ctx.measureText("H").actualBoundingBoxAscent || 70;
+  const tamano = Math.round((diseno.altoMayuscula * H * 100) / altoA100);
+
+  ctx.fillStyle = diseno.color;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-
-  const base = DISENO.tamanoBase * H;
-  ctx.font = `${base}px ${DISENO.fuente}`;
-  ctx.fillText(DISENO.linea1.texto, W / 2, DISENO.linea1.y * H);
-
-  const tamano = ajustarA(ctx, `${saludado}!`, DISENO.anchoMaximo * W, base, DISENO.fuente);
-  ctx.font = `${tamano}px ${DISENO.fuente}`;
-  ctx.fillText(`${saludado}!`, W / 2, DISENO.linea2.y * H);
+  const final = ajustarA(ctx, texto, diseno.anchoMaximo * W, tamano, fuente, 24);
+  ctx.font = `${final}px ${fuente}`;
+  ctx.fillText(texto, diseno.centroX * W, diseno.base * H);
 
   return new Promise((resolver) => lienzo.toBlob(resolver, "image/png"));
 }
@@ -395,13 +449,18 @@ function sobrePlantilla(plantilla, nombre) {
 /* -------------------------------------------------------------- Fachada */
 
 /**
- * La tarjeta de ese cliente, como PNG.
- * Usa el diseño de /public si existe; si no, la dibuja completa.
+ * La tarjeta de ese cliente, como PNG. `diasFaltantes` decide el diseño
+ * (ver tipoDeTarjeta). Si la imagen no carga, se dibuja el cupón completo.
  */
-export async function generarTarjeta(nombre) {
+export async function generarTarjeta(nombre, diasFaltantes) {
   if (!primerNombre(nombre)) return null;
-  const plantilla = await cargarPlantilla();
-  return plantilla ? sobrePlantilla(plantilla, nombre) : dibujarTarjeta(nombre);
+  const tipo = tipoDeTarjeta(diasFaltantes);
+  const diseno = PLANTILLAS[tipo];
+  const [plantilla, fuente] = await Promise.all([
+    cargarPlantilla(tipo),
+    cargarFuente(diseno.fuente),
+  ]);
+  return plantilla ? sobrePlantilla(plantilla, diseno, fuente, nombre) : dibujarTarjeta(nombre);
 }
 
 /** Nombre de archivo para cuando se descarga en vez de copiarse. */

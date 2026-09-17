@@ -210,7 +210,7 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
    */
   const copiarTarjeta = async () => {
     if (!tarjetaDisponible) return;
-    const blob = await generarTarjeta(c.nombre);
+    const blob = await generarTarjeta(c.nombre, c.dias_faltantes);
     if (!blob) return;
     blobRef.current = blob;
     if (await copiarImagenAlPortapapeles(blob)) {
@@ -221,7 +221,7 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
   };
 
   const abrirVista = async () => {
-    const blob = blobRef.current || (await generarTarjeta(c.nombre));
+    const blob = blobRef.current || (await generarTarjeta(c.nombre, c.dias_faltantes));
     if (!blob) return;
     blobRef.current = blob;
     setVistaUrl((previo) => { if (previo) URL.revokeObjectURL(previo); return URL.createObjectURL(blob); });

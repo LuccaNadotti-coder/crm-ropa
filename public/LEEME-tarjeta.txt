@@ -1,28 +1,31 @@
-TARJETA DE CUMPLEAÑOS
-=====================
+TARJETAS DE CUMPLEAÑOS
+======================
 
-Acá va el diseño del cupón que el CRM le manda a cada cliente en su cumpleaños.
+El CRM usa dos diseños y elige solo cuál mandar según la fecha:
 
-El archivo tiene que llamarse EXACTAMENTE:
+    tarjeta-cumple-proximo.jpg   Cupón 15% OFF ("¡Hola, ...! Tu cumpleaños se acerca").
+                                 Se usa cuando faltan 1 o más días.
 
-    tarjeta-cumpleanos.png
+    tarjeta-cumple-feliz.jpg     "Happy Birthday" con flores.
+                                 Se usa el mismo día del cumpleaños.
+                                 Es general para todas las tiendas: se le quitó
+                                 la dirección de sucursal ("Te esperamos en:").
 
-Ponlo en esta misma carpeta (public). En cuanto esté, en la pantalla de
-Cumpleaños aparece el botón "Copiar tarjeta y escribir": el CRM le escribe
-encima el nombre de quien cumple, deja la imagen copiada y abre el chat con el
-texto ya listo. La persona solo pega con Ctrl+V y envía.
+En la pantalla de Cumpleaños, el botón "Copiar tarjeta y escribir" toma el
+diseño que toca, tapa el nombre de ejemplo (ZULEMA), escribe el primer nombre
+del cliente, deja la imagen copiada y abre el chat. Solo hay que pegar con
+Ctrl+V y enviar.
 
-Mientras el archivo no exista, el CRM DIBUJA la tarjeta el solo: fondo vino,
-cupon crema con borde ondeado, mono dorado, 15% OFF y el nombre de quien
-cumple. O sea que ya funciona sin que nadie suba nada; el archivo solo sirve
-si prefieren usar su propio diseno (por ejemplo el de Canva).
+Las letras del nombre están en la carpeta "fuentes":
+    bodoni-moda-400.woff2        para el cupón
+    playfair-display-400.woff2   para el Happy Birthday
 
-Recomendaciones para el archivo:
-  - PNG (o JPG), lo más grande que exporte tu editor: 1080 px de ancho o más.
-  - De preferencia SIN el nombre de ejemplo. Si lo trae, el CRM lo tapa con el
-    mismo color del cupón, pero queda más limpio sin él.
-  - Si cambias el diseño (otra promoción, otro mes), reemplaza este archivo y
-    listo: no hay que tocar código.
+Si cambias un diseño
+--------------------
+  - Reemplaza el archivo con el MISMO nombre.
+  - Si el nombre de ejemplo quedó en otro lugar o con otro tamaño, hay que
+    recalibrar su entrada en src/lib/tarjeta-cumple.js, constante PLANTILLAS.
+    Si solo cambias colores o textos que no tocan el nombre, no hay que tocar nada.
 
-La posición y el tamaño del nombre se calibran en un solo lugar:
-src/lib/tarjeta-cumple.js, en la constante DISENO.
+Si alguna de las dos imágenes falta o no carga, el CRM dibuja por su cuenta
+un cupón parecido, así nunca se queda sin tarjeta.
