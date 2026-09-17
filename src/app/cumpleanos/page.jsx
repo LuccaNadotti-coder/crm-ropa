@@ -7,6 +7,7 @@ import { registrarEnvio } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombrePila,
+  saludoDelDia,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
 import { copiarImagenAlPortapapeles, descargarBlob } from "@/lib/portapapeles";
@@ -27,6 +28,19 @@ const RANGOS = [
   { id: "quincena", etiqueta: "15 días", dias: 15 },
   { id: "mes", etiqueta: "30 días", dias: 30 },
 ];
+
+/**
+ * Cierre del mensaje del cupón, en el género del cliente.
+ *
+ * "Género" en la ficha es Dama, Caballero o Ambos, y puede estar vacío. Ambos
+ * y vacío caen en una frase sin género en vez de adivinar: es preferible un
+ * "gracias por su preferencia" a tratar de clienta a un señor.
+ */
+function agradecimiento(genero) {
+  if (genero === "Dama") return "como agradecimiento por ser nuestra clienta";
+  if (genero === "Caballero") return "como agradecimiento por ser nuestro cliente";
+  return "como agradecimiento por su preferencia";
+}
 
 export default function PaginaCumpleanos() {
   return (
@@ -190,14 +204,14 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
   // igual que en la tarjeta y se lee como un saludo, no como un grito.
   const pila = nombrePila(c.nombre);
   const texto = esHoy
-    ? `Hola ${pila}, buenos días.
+    ? `Hola ${pila}, ${saludoDelDia()}.
 
 Desde SFIDA queremos enviarle un saludo muy especial por su cumpleaños 🎉
 Gracias por formar parte de nuestra familia y por confiar siempre en nosotros.
 ¡Que este nuevo año de vida esté lleno de alegría y éxitos! ✨`
-    : `Hola ${pila}, buenos días.
+    : `Hola ${pila}, ${saludoDelDia()}.
 
-En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regalarle un 15% de promoción como agradecimiento por ser nuestra clienta.
+En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regalarle un 15% de promoción ${agradecimiento(c.genero)}.
 ¡Esperamos que lo disfrute y tenga un excelente día!`;
 
   /* ------------------------------------------------------------ Tarjeta */

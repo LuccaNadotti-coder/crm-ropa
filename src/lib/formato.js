@@ -64,6 +64,18 @@ export function edadDesde(iso) {
   return edad >= 0 && edad < 130 ? edad : null;
 }
 
+/**
+ * "buenos días" / "buenas tardes" / "buenas noches" según la hora de quien
+ * escribe. Los cortes son los de uso corriente en Perú: la tarde empieza al
+ * mediodía y la noche a las 7.
+ */
+export function saludoDelDia(fecha = new Date()) {
+  const hora = fecha.getHours();
+  if (hora < 12) return "buenos días";
+  if (hora < 19) return "buenas tardes";
+  return "buenas noches";
+}
+
 /** Tiempo relativo en español: "hoy", "hace 3 días", "hace 2 meses". */
 export function haceCuanto(iso) {
   if (!iso) return null;
