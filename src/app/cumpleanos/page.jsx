@@ -190,8 +190,15 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
   // igual que en la tarjeta y se lee como un saludo, no como un grito.
   const pila = nombrePila(c.nombre);
   const texto = esHoy
-    ? `Hola ${pila}, ¡feliz cumpleaños de nuestra parte! 🎉 Tienes 15% de descuento toda esta semana.`
-    : `Hola ${pila}, ¡pronto es tu cumpleaños! 🎂 Te esperamos con un descuento especial.`;
+    ? `Hola ${pila}, buenos días.
+
+Desde SFIDA queremos enviarle un saludo muy especial por su cumpleaños 🎉
+Gracias por formar parte de nuestra familia y por confiar siempre en nosotros.
+¡Que este nuevo año de vida esté lleno de alegría y éxitos! ✨`
+    : `Hola ${pila}, buenos días.
+
+En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regalarle un 15% de promoción como agradecimiento por ser nuestra clienta.
+¡Esperamos que lo disfrute y tenga un excelente día!`;
 
   /* ------------------------------------------------------------ Tarjeta */
 
