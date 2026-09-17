@@ -14,6 +14,21 @@ import { traerTodas } from "./db";
 export const TOPE_DIARIO = 40;
 
 /**
+ * De dónde salió cada WhatsApp. Se guarda en la columna "origen" y es lo que
+ * después separa los reportes.
+ *
+ * CUMPLE_ANTIGUO es el valor que se usaba antes de separar saludo y cupón: en
+ * esas filas no se puede saber cuál de los dos se mandó, así que los reportes
+ * las muestran aparte en vez de sumarlas a uno de los dos.
+ */
+export const ORIGEN = {
+  CAMPANA: "campana",
+  CUMPLE_SALUDO: "cumpleanos_saludo",
+  CUMPLE_CUPON: "cumpleanos_cupon",
+  CUMPLE_ANTIGUO: "cumpleanos",
+};
+
+/**
  * Fecha de hoy en Lima, como "YYYY-MM-DD".
  * No se usa new Date().toISOString() porque eso da UTC: todo lo enviado
  * después de las 7 pm contaría para el día siguiente.
@@ -61,6 +76,22 @@ export async function registrarEnvio(cliente, origen = "campana") {
     origen,
   }]);
   return !error;
+}
+
+/**
+ * Todos los WhatsApp abiertos entre dos fechas, para los reportes.
+ * Las fechas van como "YYYY-MM-DD" y los dos extremos se incluyen.
+ */
+export async function enviosEntre(desde, hasta) {
+  return traerTodas(() =>
+    supabase
+      .from("envios_whatsapp")
+      .select("cliente_id, tienda, origen, fecha")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha")
+      .order("cliente_id")
+  );
 }
 
 /** Cuántos le quedan hoy a esa tienda. */

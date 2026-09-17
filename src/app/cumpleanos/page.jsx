@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
-import { registrarEnvio } from "@/lib/envios";
+import { registrarEnvio, ORIGEN } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombrePila,
@@ -280,7 +280,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
             texto={texto}
             etiqueta={tarjetaDisponible ? "Copiar tarjeta y escribir" : "Enviar saludo"}
             className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
-            alEnviar={() => registrarEnvio(c, "cumpleanos")}
+            alEnviar={() => registrarEnvio(c, esHoy ? ORIGEN.CUMPLE_SALUDO : ORIGEN.CUMPLE_CUPON)}
             preparar={tarjetaDisponible ? copiarTarjeta : undefined}
           />
         ) : (

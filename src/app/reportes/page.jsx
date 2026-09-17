@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import { MESES, MESES_CORTOS, fechaCorta, telefonoEsValido } from "@/lib/formato";
+import { enviosEntre, fechaHoyLima, ORIGEN } from "@/lib/envios";
 import { veTodasLasTiendas } from "@/lib/permisos";
 import { descargarArchivo } from "@/lib/portapapeles";
 import { construirDashboardHtml } from "@/lib/dashboard-export";
@@ -13,7 +14,7 @@ import { useAvisos } from "@/components/Avisos";
 import { BarrasHorizontales, BarrasMensuales } from "@/components/Barras";
 import {
   TarjetaKpi, Avatar, Insignia, EstadoVacio, FilasEsqueleto, TelefonoCopiable,
-  IconoMas, IconoUsuarios, IconoExcel, IconoDescargar,
+  IconoMas, IconoUsuarios, IconoExcel, IconoDescargar, IconoTorta,
 } from "@/components/ui";
 
 export default function PaginaReportes() {
@@ -40,6 +41,61 @@ function diasHastaCumple(fecha) {
   return Math.round((proximo - base) / 86400000);
 }
 
+/* ------------------------------------------------- Rango de fechas */
+
+/** Un Date a "YYYY-MM-DD", que es como se guardan las fechas de envío. */
+function comoIso(fecha) {
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+}
+
+/** Día de un created_at (que es timestamp) en hora local, como "YYYY-MM-DD". */
+function diaDe(timestamp) {
+  return timestamp ? comoIso(new Date(timestamp)) : null;
+}
+
+/**
+ * Atajos del selector de fechas. Se calculan al momento de tocarlos, no al
+ * cargar la página, para que "hoy" siga siendo hoy si alguien deja el CRM
+ * abierto de un día para otro.
+ */
+const ATAJOS = [
+  {
+    id: "mes",
+    etiqueta: "Este mes",
+    calcular: () => {
+      const h = new Date();
+      return { desde: comoIso(new Date(h.getFullYear(), h.getMonth(), 1)), hasta: comoIso(h) };
+    },
+  },
+  {
+    id: "mesPrevio",
+    etiqueta: "Mes pasado",
+    calcular: () => {
+      const h = new Date();
+      return {
+        desde: comoIso(new Date(h.getFullYear(), h.getMonth() - 1, 1)),
+        hasta: comoIso(new Date(h.getFullYear(), h.getMonth(), 0)),
+      };
+    },
+  },
+  {
+    id: "30dias",
+    etiqueta: "Últimos 30 días",
+    calcular: () => {
+      const h = new Date();
+      return { desde: comoIso(new Date(h.getFullYear(), h.getMonth(), h.getDate() - 29)), hasta: comoIso(h) };
+    },
+  },
+  {
+    id: "anio",
+    etiqueta: "Este año",
+    calcular: () => {
+      const h = new Date();
+      return { desde: comoIso(new Date(h.getFullYear(), 0, 1)), hasta: comoIso(h) };
+    },
+  },
+];
+
 function Contenido({ perfil }) {
   const avisos = useAvisos();
   const verTodo = veTodasLasTiendas(perfil);
@@ -50,6 +106,14 @@ function Contenido({ perfil }) {
   const [filtroTienda, setFiltroTienda] = useState("");
   const [exportando, setExportando] = useState(false);
   const [armandoDashboard, setArmandoDashboard] = useState(false);
+
+  // Rango del reporte de cumpleaños y altas. Arranca en el mes en curso.
+  const [desde, setDesde] = useState(() => ATAJOS[0].calcular().desde);
+  const [hasta, setHasta] = useState(() => fechaHoyLima());
+  const [envios, setEnvios] = useState([]);
+  const [cargandoEnvios, setCargandoEnvios] = useState(true);
+  const [exportandoRango, setExportandoRango] = useState(false);
+  const rangoAlReves = desde > hasta;
 
   useEffect(() => {
     (async () => {
@@ -66,6 +130,26 @@ function Contenido({ perfil }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Los envíos se piden de nuevo cada vez que cambia el rango, no se filtran
+  // en memoria: son una tabla que crece con cada WhatsApp y no tiene sentido
+  // traerla completa para mostrar un mes.
+  useEffect(() => {
+    if (rangoAlReves) return;
+    let vigente = true;
+    setCargandoEnvios(true);
+    (async () => {
+      try {
+        const filas = await enviosEntre(desde, hasta);
+        if (vigente) setEnvios(filas);
+      } catch (e) {
+        if (vigente) avisos.error("No se pudieron cargar los envíos: " + e.message);
+      }
+      if (vigente) setCargandoEnvios(false);
+    })();
+    return () => { vigente = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desde, hasta, rangoAlReves]);
+
   /** "2026-08" a partir de created_at, en hora local. */
   const claveMes = (c) => {
     if (!c.created_at) return null;
@@ -77,6 +161,39 @@ function Contenido({ perfil }) {
     () => (filtroTienda ? clientes.filter((c) => c.tienda === filtroTienda) : clientes),
     [clientes, filtroTienda]
   );
+
+  /* ---------------------------------------- Reporte del rango de fechas */
+
+  const enviosEnAlcance = useMemo(
+    () => (filtroTienda ? envios.filter((e) => e.tienda === filtroTienda) : envios),
+    [envios, filtroTienda]
+  );
+
+  const [saludos, cupones, cumpleSinDetalle, campanas] = useMemo(() => {
+    const de = (origen) => enviosEnAlcance.filter((e) => e.origen === origen);
+    return [
+      de(ORIGEN.CUMPLE_SALUDO),
+      de(ORIGEN.CUMPLE_CUPON),
+      de(ORIGEN.CUMPLE_ANTIGUO),
+      de(ORIGEN.CAMPANA),
+    ];
+  }, [enviosEnAlcance]);
+
+  /** Clientes registrados dentro del rango elegido. */
+  const nuevosRango = useMemo(() => {
+    if (rangoAlReves) return [];
+    return enAlcance.filter((c) => {
+      const dia = diaDe(c.created_at);
+      return dia && dia >= desde && dia <= hasta;
+    });
+  }, [enAlcance, desde, hasta, rangoAlReves]);
+
+  /** Nombre y teléfono de cada cliente, para el detalle de los envíos. */
+  const porId = useMemo(() => {
+    const mapa = {};
+    clientes.forEach((c) => { mapa[c.id] = c; });
+    return mapa;
+  }, [clientes]);
 
   /** Serie de los últimos 12 meses, incluyendo los meses sin altas. */
   const serie = useMemo(() => {
@@ -161,6 +278,77 @@ function Contenido({ perfil }) {
       avisos.error("No se pudo exportar: " + e.message);
     }
     setExportando(false);
+  };
+
+  /**
+   * Excel del rango elegido: una hoja con los totales, una con cada envío de
+   * cumpleaños (fecha, tipo y cliente) y otra con los clientes nuevos.
+   */
+  const exportarRango = async () => {
+    setExportandoRango(true);
+    try {
+      const XLSX = await import("xlsx");
+      const alcance = filtroTienda || "Todas las tiendas";
+      const libro = XLSX.utils.book_new();
+
+      const agregar = (nombre, filas) => {
+        const hoja = XLSX.utils.json_to_sheet(filas);
+        if (filas.length > 0) {
+          hoja["!cols"] = Object.keys(filas[0]).map((k) => ({ wch: Math.max(14, k.length + 2) }));
+        }
+        XLSX.utils.book_append_sheet(libro, hoja, nombre);
+      };
+
+      agregar("Resumen", [
+        { Dato: "Desde", Valor: desde },
+        { Dato: "Hasta", Valor: hasta },
+        { Dato: "Alcance", Valor: alcance },
+        { Dato: "Saludos de cumpleaños enviados", Valor: saludos.length },
+        { Dato: "Cupones de cumpleaños enviados", Valor: cupones.length },
+        ...(cumpleSinDetalle.length > 0
+          ? [{ Dato: "Cumpleaños sin detalle (envíos antiguos)", Valor: cumpleSinDetalle.length }]
+          : []),
+        { Dato: "Mensajes de campaña enviados", Valor: campanas.length },
+        { Dato: "Clientes nuevos", Valor: nuevosRango.length },
+      ]);
+
+      const etiquetaTipo = {
+        [ORIGEN.CUMPLE_SALUDO]: "Saludo de cumpleaños",
+        [ORIGEN.CUMPLE_CUPON]: "Cupón 15%",
+        [ORIGEN.CUMPLE_ANTIGUO]: "Cumpleaños (sin detalle)",
+      };
+      const detalle = [...saludos, ...cupones, ...cumpleSinDetalle]
+        .slice()
+        .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+        .map((e) => ({
+          Fecha: e.fecha || "",
+          Tipo: etiquetaTipo[e.origen] || e.origen,
+          Cliente: porId[e.cliente_id]?.nombre || "(cliente eliminado)",
+          Telefono: porId[e.cliente_id]?.telefono || "",
+          Tienda: e.tienda || "",
+          Asesora: porId[e.cliente_id]?.asesora || "",
+        }));
+      agregar("Cumpleanos", detalle.length > 0 ? detalle : [{ Fecha: "", Tipo: "Sin envíos en el rango" }]);
+
+      const nuevos = nuevosRango.map((c) => ({
+        Nombre: c.nombre,
+        DNI: c.dni_ruc || "",
+        Telefono: c.telefono || "",
+        "Fecha de alta": diaDe(c.created_at) || "",
+        Tienda: c.tienda || "",
+        Asesora: c.asesora || "",
+        Genero: c.genero || "",
+        Distrito: c.distrito || "",
+      }));
+      agregar("Clientes nuevos", nuevos.length > 0 ? nuevos : [{ Nombre: "Sin altas en el rango" }]);
+
+      const sufijo = filtroTienda ? `-${filtroTienda.replace(/\s+/g, "-")}` : "";
+      XLSX.writeFile(libro, `reporte-cumpleanos-${desde}_a_${hasta}${sufijo}.xlsx`);
+      avisos.exito(`Excel generado: ${saludos.length + cupones.length + cumpleSinDetalle.length} envíos y ${nuevosRango.length} clientes nuevos.`);
+    } catch (e) {
+      avisos.error("No se pudo exportar: " + e.message);
+    }
+    setExportandoRango(false);
   };
 
   /**
@@ -339,6 +527,120 @@ function Contenido({ perfil }) {
           </button>
         </div>
       </div>
+
+      {/* Cumpleaños y altas entre dos fechas */}
+      <section className="carta p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="font-bold text-ink">Cumpleaños y altas por fecha</h2>
+            <p className="text-sm text-ink-mute">
+              Elige el periodo que quieras medir · {filtroTienda || "todas las tiendas"}
+            </p>
+          </div>
+          <button
+            onClick={exportarRango}
+            disabled={exportandoRango || rangoAlReves || cargandoEnvios}
+            className="btn-excel shrink-0"
+          >
+            <IconoExcel size={16} />
+            {exportandoRango ? "Generando..." : "Exportar"}
+          </button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <label className="text-xs font-semibold text-ink-mute">
+            Desde
+            <input
+              type="date"
+              className="input mt-1 w-auto"
+              value={desde}
+              max={hasta}
+              onChange={(e) => setDesde(e.target.value)}
+            />
+          </label>
+          <label className="text-xs font-semibold text-ink-mute">
+            Hasta
+            <input
+              type="date"
+              className="input mt-1 w-auto"
+              value={hasta}
+              min={desde}
+              onChange={(e) => setHasta(e.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {ATAJOS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => { const r = a.calcular(); setDesde(r.desde); setHasta(r.hasta); }}
+                className="rounded-lg border border-borde px-3 py-1.5 text-[13px] font-semibold text-ink-mute hover:bg-cream"
+              >
+                {a.etiqueta}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {rangoAlReves ? (
+          <p className="rounded-lg bg-alerta-soft px-3 py-2.5 text-sm text-alerta">
+            La fecha de inicio es posterior a la de fin. Corrige el rango para ver los números.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <TarjetaKpi
+                etiqueta="Saludos de cumpleaños"
+                valor={saludos.length}
+                detalle="Tarjeta del mismo día"
+                tono="wine"
+                icono={<IconoTorta size={20} />}
+                cargando={cargandoEnvios}
+              />
+              <TarjetaKpi
+                etiqueta="Cupones de 15%"
+                valor={cupones.length}
+                detalle="Invitación de los días previos"
+                tono="brass"
+                cargando={cargandoEnvios}
+              />
+              <TarjetaKpi
+                etiqueta="Clientes nuevos"
+                valor={nuevosRango.length}
+                detalle={filtroTienda || "Todas las tiendas"}
+                tono="exito"
+                icono={<IconoMas size={20} />}
+              />
+              <TarjetaKpi
+                etiqueta="Mensajes de campaña"
+                valor={campanas.length}
+                detalle="Enviados en el mismo periodo"
+                cargando={cargandoEnvios}
+              />
+            </div>
+
+            {cumpleSinDetalle.length > 0 && (
+              <p className="mt-3 text-xs text-ink-faint">
+                Hay {cumpleSinDetalle.length} envíos de cumpleaños anteriores a esta versión del CRM,
+                que no guardaban si fueron saludo o cupón. Salen aparte en el Excel.
+              </p>
+            )}
+
+            {verTodo && !filtroTienda && (
+              <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+                <Panel titulo="Saludos por tienda" subtitulo={`${desde} a ${hasta}`}>
+                  <BarrasHorizontales datos={agrupar(saludos, "tienda", "Sin tienda")} total={saludos.length} />
+                </Panel>
+                <Panel titulo="Cupones por tienda" subtitulo={`${desde} a ${hasta}`}>
+                  <BarrasHorizontales datos={agrupar(cupones, "tienda", "Sin tienda")} total={cupones.length} />
+                </Panel>
+                <Panel titulo="Clientes nuevos por tienda" subtitulo={`${desde} a ${hasta}`}>
+                  <BarrasHorizontales datos={agrupar(nuevosRango, "tienda", "Sin tienda")} total={nuevosRango.length} />
+                </Panel>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       {/* KPIs del mes seleccionado */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
