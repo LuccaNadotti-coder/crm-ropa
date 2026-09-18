@@ -13,8 +13,10 @@ import {
 } from "@/lib/envios";
 import { veTodasLasTiendas, puedeEnviarWhatsApp, esAdmin } from "@/lib/permisos";
 import {
-  adjuntoActual, subirAdjunto, quitarAdjunto, enlaceCorto, pesoLegible, TIPOS_ACEPTADOS,
+  adjuntoActual, subirAdjunto, quitarAdjunto, enlaceCorto, pesoLegible, imagenParaPegar,
+  TIPOS_ACEPTADOS,
 } from "@/lib/adjunto-campana";
+import { copiarImagenAlPortapapeles } from "@/lib/portapapeles";
 import { abrirWhatsApp, useModoWhatsApp, MODO_COPIAR, MODO_APP } from "@/lib/whatsapp";
 import { SelectorModoWhatsApp } from "@/components/ModoWhatsApp";
 import Marco from "@/components/Marco";
@@ -103,8 +105,13 @@ function Contenido({ perfil }) {
   const [marcarCatalogo, setMarcarCatalogo] = useState(true);
 
   // Archivo de la campaña: uno solo para todas las tiendas.
+  //
+  // Una imagen se copia al portapapeles y se pega en el chat con Ctrl+V, que
+  // es la única forma de que viaje como imagen de verdad. Un PDF no se puede
+  // pegar, así que va como enlace. Los dos caminos se pueden combinar.
   const [adjunto, setAdjunto] = useState(null);
   const [adjuntarEnlace, setAdjuntarEnlace] = useState(true);
+  const [pegarImagen, setPegarImagen] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const archivoRef = useRef(null);
   const puedeCambiarAdjunto = esAdmin(perfil);
@@ -149,6 +156,16 @@ function Contenido({ perfil }) {
   // El adjunto se pide aparte: es una sola consulta al almacenamiento y no
   // tiene por qué demorar la lista de clientes.
   useEffect(() => { adjuntoActual().then(setAdjunto); }, []);
+
+  // Una imagen arranca en "pegar" y sin enlace; un PDF solo puede ir por
+  // enlace. La imagen se prepara desde ya para que copiarla sea instantáneo
+  // cuando empiece la campaña.
+  useEffect(() => {
+    if (!adjunto) return;
+    setPegarImagen(!adjunto.esPdf);
+    setAdjuntarEnlace(adjunto.esPdf);
+    if (!adjunto.esPdf) imagenParaPegar(adjunto);
+  }, [adjunto]);
 
   const elegirArchivo = async (e) => {
     const archivo = e.target.files?.[0];
@@ -331,6 +348,20 @@ function Contenido({ perfil }) {
       return;
     }
 
+    // La imagen se copia ANTES de abrir el chat: el portapapeles solo acepta
+    // escrituras con la pestaña en foco, y al abrir WhatsApp el foco se va.
+    // Ya está descargada, así que son milisegundos y el permiso del clic
+    // sigue vigente cuando toca abrir.
+    // En modo "solo copiar" no se toca: ahí el portapapeles lo ocupa el texto
+    // del mensaje, y pisarlo con la imagen dejaría a la tienda sin qué pegar.
+    if (adjunto && !adjunto.esPdf && pegarImagen && !soloCopiar) {
+      const imagen = await imagenParaPegar(adjunto);
+      const copiada = imagen && (await copiarImagenAlPortapapeles(imagen));
+      if (!copiada) {
+        avisos.error("No se pudo copiar la imagen. Márcala como enlace o pégala a mano.");
+      }
+    }
+
     // Se abre primero: window.open solo funciona dentro del clic del usuario.
     if (!soloCopiar) abrirWhatsApp(actual.telefono, armarMensaje(actual), modo);
 
@@ -385,6 +416,7 @@ function Contenido({ perfil }) {
         restantes={restantesHoy(enviadosHoy, tiendaActual)}
         tienda={tiendaActual}
         modo={modo}
+        pegaImagen={!!adjunto && !adjunto.esPdf && pegarImagen && !soloCopiar}
         onEnviar={enviar}
         onSaltar={saltar}
         onTerminar={terminar}
@@ -557,20 +589,44 @@ function Contenido({ perfil }) {
               </div>
 
               {adjunto && (
-                <label className="mt-3 flex cursor-pointer items-start gap-2.5 border-t border-borde pt-3">
-                  <input
-                    type="checkbox"
-                    checked={adjuntarEnlace}
-                    onChange={(e) => setAdjuntarEnlace(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brass"
-                  />
-                  <span className="text-sm text-ink-soft">
-                    Agregar el enlace del archivo al final del mensaje
-                    <span className="block text-xs text-ink-faint">
-                      {enlaceCorto()} · si más adelante cambias el archivo, el mismo enlace muestra el nuevo.
+                <div className="mt-3 space-y-2 border-t border-borde pt-3">
+                  {!adjunto.esPdf && (
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={pegarImagen}
+                        onChange={(e) => setPegarImagen(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brass"
+                      />
+                      <span className="text-sm text-ink-soft">
+                        Copiar la imagen en cada envío, para pegarla con <strong>Ctrl+V</strong>
+                        <span className="block text-xs text-ink-faint">
+                          {soloCopiar
+                            ? "En el modo “Solo copiar” no se usa: ahí el portapapeles lleva el texto del mensaje. Marca el enlace."
+                            : "La imagen viaja de verdad por WhatsApp. Se copia sola al abrir cada chat; tú pegas y envías."}
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  <label className="flex cursor-pointer items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={adjuntarEnlace}
+                      onChange={(e) => setAdjuntarEnlace(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brass"
+                    />
+                    <span className="text-sm text-ink-soft">
+                      Agregar el enlace del archivo al final del mensaje
+                      <span className="block text-xs text-ink-faint">
+                        {adjunto.esPdf
+                          ? "Un PDF no se puede pegar en el chat, así que va por enlace."
+                          : "Útil si mandas desde el celular, donde no se puede pegar."}
+                        {" "}{enlaceCorto()}
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
+                </div>
               )}
             </div>
 
@@ -732,7 +788,7 @@ function Contenido({ perfil }) {
 
 function ModoEnvio({
   cliente, mensaje, indice, total, contactados, marcarCatalogo, mesNombre,
-  usadosHoy, restantes, tienda, modo, onEnviar, onSaltar, onTerminar,
+  usadosHoy, restantes, tienda, modo, pegaImagen, onEnviar, onSaltar, onTerminar,
 }) {
   const botonRef = useRef(null);
   const enTope = restantes <= 0;
@@ -786,6 +842,12 @@ function ModoEnvio({
           <div className="whitespace-pre-wrap rounded-lg rounded-tl-none bg-exito-soft p-4 text-sm leading-relaxed text-ink-soft">
             {mensaje}
           </div>
+
+          {pegaImagen && (
+            <p className="mt-2 rounded-lg bg-brass-soft px-3 py-2 text-xs text-ink-soft">
+              🖼️ La imagen se copia al abrir el chat: pégala con <strong>Ctrl+V</strong> antes de enviar.
+            </p>
+          )}
         </div>
 
         {marcarCatalogo && !enTope && (

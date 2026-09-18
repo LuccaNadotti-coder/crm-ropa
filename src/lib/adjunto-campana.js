@@ -121,6 +121,52 @@ export async function quitarAdjunto() {
   if (error) throw error;
 }
 
+/* ------------------------------------------------ Imagen para el portapapeles */
+
+let cachePegable = { ruta: null, blob: null };
+
+/**
+ * La imagen lista para pegar con Ctrl+V en el chat.
+ *
+ * Los navegadores solo aceptan PNG en el portapapeles, así que un JPG se
+ * vuelve a dibujar en un lienzo y se guarda como PNG. Se hace una sola vez y
+ * queda en memoria: en una campaña de 40 clientes se copia 40 veces la misma.
+ *
+ * Devuelve null si el adjunto es un PDF o si la imagen no se pudo leer.
+ */
+export async function imagenParaPegar(adjunto) {
+  if (!adjunto || adjunto.esPdf) return null;
+  if (cachePegable.ruta === adjunto.ruta) return cachePegable.blob;
+
+  try {
+    const respuesta = await fetch(adjunto.url, { cache: "force-cache" });
+    if (!respuesta.ok) return null;
+    const original = await respuesta.blob();
+    const png = original.type === "image/png" ? original : await aPng(original);
+    cachePegable = { ruta: adjunto.ruta, blob: png };
+    return png;
+  } catch {
+    return null;
+  }
+}
+
+function aPng(blob) {
+  return new Promise((resolver) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const lienzo = document.createElement("canvas");
+      lienzo.width = img.naturalWidth;
+      lienzo.height = img.naturalHeight;
+      lienzo.getContext("2d").drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      lienzo.toBlob(resolver, "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolver(null); };
+    img.src = url;
+  });
+}
+
 /** "2,4 MB" a partir de los bytes. */
 export function pesoLegible(bytes) {
   if (!bytes) return "";
