@@ -147,3 +147,23 @@ export function nombrePila(nombre) {
   if (!primero) return "";
   return primero.charAt(0).toUpperCase() + primero.slice(1).toLowerCase();
 }
+
+/**
+ * Cómo se le habla al cliente en los mensajes y en la tarjeta.
+ *
+ * Por defecto es la primera palabra del nombre, pero hay fichas cargadas con
+ * el apellido adelante ("VILLANUEVA BRAVO SOFIA IRENE"), y ahí saldría
+ * "Hola Villanueva". Para esos casos la ficha tiene un campo opcional,
+ * nombre_pila: si está lleno, manda ese.
+ *
+ * Adivinar cuál de las palabras es el nombre no se puede hacer bien: hay
+ * apellidos que son nombres y al revés. Por eso se pregunta en vez de suponer.
+ */
+export function nombreDeTrato(cliente) {
+  const propio = normalizarTexto(cliente?.nombre_pila);
+  if (!propio) return nombrePila(cliente?.nombre);
+  return propio
+    .split(" ")
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(" ");
+}

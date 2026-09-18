@@ -6,6 +6,7 @@ import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, diaYMes, telefonoEsValido,
+  nombreDeTrato,
 } from "@/lib/formato";
 import {
   TOPE_DIARIO, enviosDeHoyPorTienda, registrarEnvio, restantesHoy,
@@ -245,8 +246,11 @@ function Contenido({ perfil }) {
   );
 
   const armarMensaje = (c) => {
+    // {nombre} es el nombre de pila, igual que en los saludos de cumpleaños:
+    // "Hola ABANTO ALVA INGRID JENNIFER" se lee como un formulario, no como un
+    // mensaje de la tienda.
     const base = (mensaje || "")
-      .replaceAll("{nombre}", c.nombre || "")
+      .replaceAll("{nombre}", nombreDeTrato(c) || c.nombre || "")
       .replaceAll("{tienda}", (c.tienda || "SFIDA").replace(" SFIDA", ""))
       .replaceAll("{cumple}", diaYMes(c.fecha_nacimiento));
     if (!adjunto || !adjuntarEnlace) return base;

@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { traerTodas, enLotes } from "@/lib/db";
+import { traerTodas, enLotes, existeColumna } from "@/lib/db";
 import { PERU, DEPARTAMENTOS, TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, normalizarTexto, normalizarOpcional, soloNumeros, soloLetras,
   fechaCorta, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
-  MESES, MESES_CORTOS,
+  nombrePila, MESES, MESES_CORTOS,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEliminar, puedeEnviarWhatsApp } from "@/lib/permisos";
 import { BotonWhatsApp } from "@/components/ModoWhatsApp";
@@ -28,7 +28,7 @@ const POR_PAGINA = 40;
 const saludo = (c) => `Hola ${c.nombre}, te saludamos de SFIDA.`;
 
 const formVacio = {
-  nombre: "", dni_ruc: "", telefono: "", fecha_nacimiento: "", genero: "",
+  nombre: "", nombre_pila: "", dni_ruc: "", telefono: "", fecha_nacimiento: "", genero: "",
   tipo_cliente: "", talla: "", estilo: "", departamento: "", distrito: "",
   tienda: "", asesora: "", observaciones: "",
 };
@@ -488,6 +488,10 @@ function FormularioCliente({ abierto, cliente, perfil, onCerrar, onGuardado }) {
   const [errores, setErrores] = useState({});
   const [guardando, setGuardando] = useState(false);
 
+  // El campo del nombre de saludo solo aparece si la base ya lo tiene (v7).
+  const [hayNombrePila, setHayNombrePila] = useState(false);
+  useEffect(() => { existeColumna("clientes", "nombre_pila", supabase).then(setHayNombrePila); }, []);
+
   useEffect(() => {
     if (!abierto) return;
     setErrores({});
@@ -553,6 +557,7 @@ function FormularioCliente({ abierto, cliente, perfil, onCerrar, onGuardado }) {
     const datos = {
       ...form,
       nombre: normalizarTexto(form.nombre),
+      nombre_pila: normalizarOpcional(form.nombre_pila),
       asesora: normalizarOpcional(form.asesora),
       observaciones: normalizarOpcional(form.observaciones),
       dni_ruc: form.dni_ruc || null,
@@ -563,6 +568,9 @@ function FormularioCliente({ abierto, cliente, perfil, onCerrar, onGuardado }) {
       departamento: form.departamento || null,
       distrito: form.distrito || null,
     };
+    // Mientras no se haya corrido la migración v7, esa columna no existe y
+    // mandarla haría fallar el guardado entero.
+    if (!hayNombrePila) delete datos.nombre_pila;
 
     const { error } = cliente
       ? await supabase.from("clientes").update(datos).eq("id", cliente.id)
@@ -595,6 +603,22 @@ function FormularioCliente({ abierto, cliente, perfil, onCerrar, onGuardado }) {
               onChange={(e) => cambiar("telefono", e.target.value)} placeholder="987654321"
               inputMode="numeric" type="tel" maxLength={11} />
           </Campo>
+
+          {hayNombrePila && (
+            <Campo label="Nombre para los saludos (opcional)" full>
+              <input
+                className="input"
+                value={form.nombre_pila}
+                onChange={(e) => cambiar("nombre_pila", e.target.value)}
+                placeholder={nombrePila(form.nombre) || "María"}
+                maxLength={40}
+              />
+              <p className="mt-1 text-xs text-ink-faint">
+                Solo si la ficha tiene el apellido adelante. Vacío, el CRM saluda
+                con la primera palabra del nombre: <strong>{nombrePila(form.nombre) || "—"}</strong>.
+              </p>
+            </Campo>
+          )}
 
           <Campo label="DNI / RUC" error={errores.dni_ruc}>
             <input className={`input ${errores.dni_ruc ? "input-error" : ""}`} value={form.dni_ruc}

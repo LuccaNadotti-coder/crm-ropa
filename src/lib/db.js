@@ -29,6 +29,26 @@ export async function traerTodas(construirQuery) {
 }
 
 /**
+ * Si una columna existe todavía en la base.
+ *
+ * Sirve para las columnas que llegan con una migración que quizá no se corrió:
+ * la pantalla esconde el campo en vez de romperse al guardar. Se consulta una
+ * sola vez por columna.
+ */
+const columnas = {};
+export function existeColumna(tabla, columna, cliente) {
+  const clave = `${tabla}.${columna}`;
+  if (!columnas[clave]) {
+    columnas[clave] = cliente
+      .from(tabla)
+      .select(columna)
+      .limit(1)
+      .then(({ error }) => !error);
+  }
+  return columnas[clave];
+}
+
+/**
  * Parte una lista en lotes para los filtros .in().
  * 200 ids son unos 7.500 caracteres de URL: muy por debajo del límite.
  */

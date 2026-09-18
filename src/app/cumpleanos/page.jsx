@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -6,7 +6,7 @@ import { traerTodas } from "@/lib/db";
 import { registrarEnvio, ORIGEN } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
-  paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombrePila,
+  paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombreDeTrato,
   saludoDelDia,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
@@ -201,8 +201,9 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
   const cumpleAnios = edad != null ? edad + (esHoy ? 0 : 1) : null;
 
   // En el mensaje va el nombre de pila, no el completo en mayúsculas: queda
-  // igual que en la tarjeta y se lee como un saludo, no como un grito.
-  const pila = nombrePila(c.nombre);
+  // igual que en la tarjeta y se lee como un saludo, no como un grito. Si la
+  // ficha trae un nombre de saludo propio, manda ese.
+  const pila = nombreDeTrato(c);
   const texto = esHoy
     ? `Hola ${pila}, ${saludoDelDia()}.
 
@@ -231,18 +232,18 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
    */
   const copiarTarjeta = async () => {
     if (!tarjetaDisponible) return;
-    const blob = await generarTarjeta(c.nombre, c.dias_faltantes);
+    const blob = await generarTarjeta(pila, c.dias_faltantes);
     if (!blob) return;
     blobRef.current = blob;
     if (await copiarImagenAlPortapapeles(blob)) {
-      avisos.exito(`Tarjeta de ${primerNombre(c.nombre)} copiada. Pégala en el chat con Ctrl+V.`);
+      avisos.exito(`Tarjeta de ${primerNombre(pila)} copiada. Pégala en el chat con Ctrl+V.`);
     } else {
       avisos.error("No se pudo copiar la tarjeta. Ábrela con “Ver tarjeta” y descárgala.");
     }
   };
 
   const abrirVista = async () => {
-    const blob = blobRef.current || (await generarTarjeta(c.nombre, c.dias_faltantes));
+    const blob = blobRef.current || (await generarTarjeta(pila, c.dias_faltantes));
     if (!blob) return;
     blobRef.current = blob;
     setVistaUrl((previo) => { if (previo) URL.revokeObjectURL(previo); return URL.createObjectURL(blob); });
@@ -306,7 +307,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
               esHoy ? "text-white/80" : "text-ink-mute"
             }`}
           >
-            Ver tarjeta de {primerNombre(c.nombre)}
+            Ver tarjeta de {primerNombre(pila)}
           </button>
           <span className={`text-[11px] ${esHoy ? "text-white/60" : "text-ink-faint"}`}>
             luego Ctrl+V en el chat
@@ -317,7 +318,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
       <Modal
         abierto={vistaAbierta}
         onCerrar={() => setVistaAbierta(false)}
-        titulo={`Tarjeta de ${primerNombre(c.nombre)}`}
+        titulo={`Tarjeta de ${primerNombre(pila)}`}
         descripcion="Así le va a llegar. Cópiala y pégala en el chat con Ctrl+V."
         ancho="max-w-sm"
       >
@@ -325,7 +326,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={vistaUrl}
-            alt={`Tarjeta de cumpleaños de ${primerNombre(c.nombre)}`}
+            alt={`Tarjeta de cumpleaños de ${primerNombre(pila)}`}
             className="mx-auto w-full max-w-[300px] rounded-lg border border-borde"
           />
         )}
@@ -345,7 +346,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
             Copiar tarjeta
           </button>
           <button
-            onClick={() => blobRef.current && descargarBlob(nombreArchivoTarjeta(c.nombre), blobRef.current)}
+            onClick={() => blobRef.current && descargarBlob(nombreArchivoTarjeta(pila), blobRef.current)}
             className="btn-contorno"
           >
             <IconoDescargar size={16} />
@@ -397,3 +398,4 @@ function Casilla({ hecho, texto, oscuro, cargando, bloqueada, onCambiar }) {
     </label>
   );
 }
+

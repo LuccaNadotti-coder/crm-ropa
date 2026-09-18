@@ -1,13 +1,3 @@
-﻿-- =========================================================
--- SFIDA CRM — LO QUE FALTA CORRER (actualizado)
---
--- Los scripts v4, v5 y v6 ya estan corridos. Lo unico pendiente es el v7,
--- que agrega el campo "nombre para los saludos" a la ficha del cliente.
---
--- Copia TODO este archivo, pegalo en Supabase > SQL Editor > New query
--- y dale Run.
--- =========================================================
-
 -- =========================================================
 -- v7 — Nombre para los saludos
 --
@@ -76,4 +66,3 @@ limit 5;
 -- from clientes
 -- where array_length(string_to_array(trim(nombre), ' '), 1) >= 4
 -- order by nombre;
-
