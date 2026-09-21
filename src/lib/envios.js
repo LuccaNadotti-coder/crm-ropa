@@ -23,6 +23,7 @@ export const TOPE_DIARIO = 40;
  */
 export const ORIGEN = {
   CAMPANA: "campana",
+  CATALOGO: "catalogo",
   CUMPLE_SALUDO: "cumpleanos_saludo",
   CUMPLE_CUPON: "cumpleanos_cupon",
   CUMPLE_ANTIGUO: "cumpleanos",
@@ -69,13 +70,28 @@ export async function enviosDeHoyPorTienda() {
  * Nunca lanza: si falla el registro no tiene sentido interrumpir al usuario,
  * que ya abrió la conversación. Devuelve false para poder avisar.
  */
-export async function registrarEnvio(cliente, origen = "campana") {
-  const { error } = await supabase.from("envios_whatsapp").insert([{
+export async function registrarEnvio(cliente, origen = ORIGEN.CAMPANA) {
+  const fila = {
     cliente_id: cliente.id,
     tienda: cliente.tienda || "Sin tienda",
     origen,
-  }]);
-  return !error;
+  };
+
+  // La fecha se manda desde acá a propósito. Si se deja que la ponga la base,
+  // Postgres usa SU reloj, que está en UTC: todo lo enviado en Lima después de
+  // las 7 pm quedaba anotado al día siguiente y el reporte del mes no cuadraba
+  // con lo que la tienda recordaba haber mandado.
+  const { error } = await supabase
+    .from("envios_whatsapp")
+    .insert([{ ...fila, fecha: fechaHoyLima() }]);
+  if (!error) return true;
+
+  // Si la base no deja escribir esa columna (por ejemplo, porque la calcula
+  // ella sola), se reintenta sin la fecha. Vale más un envío anotado con el
+  // día corrido que un envío que no queda anotado en ninguna parte: el tope
+  // diario de WhatsApp depende de esto.
+  const reintento = await supabase.from("envios_whatsapp").insert([fila]);
+  return !reintento.error;
 }
 
 /**

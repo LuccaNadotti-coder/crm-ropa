@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
-import { registrarEnvio } from "@/lib/envios";
+import { registrarEnvio, ORIGEN } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
@@ -292,7 +292,7 @@ function Contenido({ perfil }) {
                       etiqueta="WhatsApp"
                       claseEtiqueta="hidden sm:inline"
                       className="btn-excel btn-sm shrink-0"
-                      alEnviar={() => registrarEnvio(c, "catalogo")}
+                      alEnviar={() => registrarEnvio(c, ORIGEN.CATALOGO)}
                     />
                   )}
                 </li>

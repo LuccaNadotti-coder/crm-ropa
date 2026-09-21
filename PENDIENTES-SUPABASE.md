@@ -13,6 +13,12 @@ Ninguno borra datos.
 El archivo `supabase-TODO-PENDIENTE.sql` tiene siempre lo que falta, listo
 para copiar y pegar de una sola vez.
 
+## Para revisar, no cambia nada
+
+| Script | Para qué |
+| --- | --- |
+| `supabase-diagnostico-reportes.sql` | Responde por qué Reportes no da la cantidad esperada: qué hay anotado por tipo, el reporte contra las casillas de Cumpleaños, y si algo está bloqueando que los envíos se guarden. Solo consulta, no toca nada. |
+
 ## Ya corridos
 
 | Script | Qué trajo | Estado |

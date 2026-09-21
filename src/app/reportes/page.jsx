@@ -169,15 +169,47 @@ function Contenido({ perfil }) {
     [envios, filtroTienda]
   );
 
-  const [saludos, cupones, cumpleSinDetalle, campanas] = useMemo(() => {
+  const [saludos, cupones, cumpleSinDetalle, campanas, catalogos] = useMemo(() => {
     const de = (origen) => enviosEnAlcance.filter((e) => e.origen === origen);
     return [
       de(ORIGEN.CUMPLE_SALUDO),
       de(ORIGEN.CUMPLE_CUPON),
       de(ORIGEN.CUMPLE_ANTIGUO),
       de(ORIGEN.CAMPANA),
+      de(ORIGEN.CATALOGO),
     ];
   }, [enviosEnAlcance]);
+
+  /**
+   * A cuántas personas distintas se les escribió.
+   *
+   * Los cumpleaños se cuentan así y no por filas: cada fila es un clic en el
+   * botón verde, y volver a tocarlo porque el chat no abrió, porque se cerró
+   * la ventana o porque se reintentó al rato sumaba otra vez a la misma
+   * clienta. Como nadie cumple años dos veces en un rango, la fila repetida
+   * siempre es el mismo saludo, no uno nuevo: por eso el número del tablero
+   * inflaba y no cuadraba con las casillas de la pantalla de Cumpleaños.
+   *
+   * Las campañas sí se cuentan por filas: ahí un mismo cliente puede recibir
+   * un mensaje por cada campaña del mes y cada uno es un envío de verdad.
+   */
+  const personas = (lista) => new Set(lista.map((e) => e.cliente_id)).size;
+  const saludosPersonas = personas(saludos);
+  const cuponesPersonas = personas(cupones);
+
+  /** La primera fila de cada cliente, para contar por tienda sin repetir. */
+  const unaVezPorCliente = (lista) => {
+    const vistos = new Set();
+    return lista.filter((e) => {
+      if (vistos.has(e.cliente_id)) return false;
+      vistos.add(e.cliente_id);
+      return true;
+    });
+  };
+
+  /** "3 envíos" solo cuando hubo reintentos, para que se note de dónde sale. */
+  const detalleReintentos = (lista, unicos) =>
+    lista.length > unicos ? ` · ${lista.length} clics en total` : "";
 
   /** Clientes registrados dentro del rango elegido. */
   const nuevosRango = useMemo(() => {
@@ -303,13 +335,15 @@ function Contenido({ perfil }) {
         { Dato: "Desde", Valor: desde },
         { Dato: "Hasta", Valor: hasta },
         { Dato: "Alcance", Valor: alcance },
-        { Dato: "Saludos de cumpleaños enviados", Valor: saludos.length },
-        { Dato: "Cupones de cumpleaños enviados", Valor: cupones.length },
+        { Dato: "Clientes saludados por su cumpleaños", Valor: saludosPersonas },
+        { Dato: "Clientes invitados con el 15%", Valor: cuponesPersonas },
         ...(cumpleSinDetalle.length > 0
           ? [{ Dato: "Cumpleaños sin detalle (envíos antiguos)", Valor: cumpleSinDetalle.length }]
           : []),
         { Dato: "Mensajes de campaña enviados", Valor: campanas.length },
+        ...(catalogos.length > 0 ? [{ Dato: "Catálogos enviados", Valor: catalogos.length }] : []),
         { Dato: "Clientes nuevos", Valor: nuevosRango.length },
+        { Dato: "Clics en el botón verde (cumpleaños)", Valor: saludos.length + cupones.length + cumpleSinDetalle.length },
       ]);
 
       const etiquetaTipo = {
@@ -344,7 +378,7 @@ function Contenido({ perfil }) {
 
       const sufijo = filtroTienda ? `-${filtroTienda.replace(/\s+/g, "-")}` : "";
       XLSX.writeFile(libro, `reporte-cumpleanos-${desde}_a_${hasta}${sufijo}.xlsx`);
-      avisos.exito(`Excel generado: ${saludos.length + cupones.length + cumpleSinDetalle.length} envíos y ${nuevosRango.length} clientes nuevos.`);
+      avisos.exito(`Excel generado: ${saludosPersonas + cuponesPersonas} clientes contactados por cumpleaños y ${nuevosRango.length} clientes nuevos.`);
     } catch (e) {
       avisos.error("No se pudo exportar: " + e.message);
     }
@@ -590,16 +624,16 @@ function Contenido({ perfil }) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <TarjetaKpi
                 etiqueta="Saludos de cumpleaños"
-                valor={saludos.length}
-                detalle="Tarjeta del mismo día"
+                valor={saludosPersonas}
+                detalle={`Clientes saludados el mismo día${detalleReintentos(saludos, saludosPersonas)}`}
                 tono="wine"
                 icono={<IconoTorta size={20} />}
                 cargando={cargandoEnvios}
               />
               <TarjetaKpi
-                etiqueta="Cupones de 15%"
-                valor={cupones.length}
-                detalle="Invitación de los días previos"
+                etiqueta="Invitaciones con 15%"
+                valor={cuponesPersonas}
+                detalle={`Clientes invitados los días previos${detalleReintentos(cupones, cuponesPersonas)}`}
                 tono="brass"
                 cargando={cargandoEnvios}
               />
@@ -618,8 +652,15 @@ function Contenido({ perfil }) {
               />
             </div>
 
+            <p className="mt-3 text-xs text-ink-faint">
+              Estos números cuentan los WhatsApp abiertos desde el botón verde del CRM. Lo que se
+              manda desde el celular por fuera, o lo que solo se tilda a mano en Cumpleaños, no
+              llega acá.
+              {catalogos.length > 0 && ` Además se enviaron ${catalogos.length} catálogos en el mismo periodo.`}
+            </p>
+
             {cumpleSinDetalle.length > 0 && (
-              <p className="mt-3 text-xs text-ink-faint">
+              <p className="mt-2 text-xs text-ink-faint">
                 Hay {cumpleSinDetalle.length} envíos de cumpleaños anteriores a esta versión del CRM,
                 que no guardaban si fueron saludo o cupón. Salen aparte en el Excel.
               </p>
@@ -628,10 +669,10 @@ function Contenido({ perfil }) {
             {verTodo && !filtroTienda && (
               <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
                 <Panel titulo="Saludos por tienda" subtitulo={`${desde} a ${hasta}`}>
-                  <BarrasHorizontales datos={agrupar(saludos, "tienda", "Sin tienda")} total={saludos.length} />
+                  <BarrasHorizontales datos={agrupar(unaVezPorCliente(saludos), "tienda", "Sin tienda")} total={saludosPersonas} />
                 </Panel>
-                <Panel titulo="Cupones por tienda" subtitulo={`${desde} a ${hasta}`}>
-                  <BarrasHorizontales datos={agrupar(cupones, "tienda", "Sin tienda")} total={cupones.length} />
+                <Panel titulo="Invitaciones por tienda" subtitulo={`${desde} a ${hasta}`}>
+                  <BarrasHorizontales datos={agrupar(unaVezPorCliente(cupones), "tienda", "Sin tienda")} total={cuponesPersonas} />
                 </Panel>
                 <Panel titulo="Clientes nuevos por tienda" subtitulo={`${desde} a ${hasta}`}>
                   <BarrasHorizontales datos={agrupar(nuevosRango, "tienda", "Sin tienda")} total={nuevosRango.length} />

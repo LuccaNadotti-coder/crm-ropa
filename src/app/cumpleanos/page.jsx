@@ -242,6 +242,23 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
     }
   };
 
+  /**
+   * Lo que pasa al tocar el botón verde: queda la constancia del envío (es lo
+   * que cuentan los Reportes) y además se marca sola la casilla de abajo.
+   *
+   * Antes eran dos cosas sueltas: el botón anotaba el envío y la casilla se
+   * tildaba a mano, así que Reportes y las casillas nunca daban lo mismo.
+   * Quien no use el botón puede seguir tildando la casilla a mano.
+   */
+  const anotarEnvio = async () => {
+    const campo = esHoy ? "saludo_cumple_anio" : "promo_enviada_anio";
+    const anotado = await registrarEnvio(c, esHoy ? ORIGEN.CUMPLE_SALUDO : ORIGEN.CUMPLE_CUPON);
+    if (!anotado) {
+      avisos.error("El WhatsApp se abrió, pero no se pudo anotar en Reportes. Avisa al administrador.");
+    }
+    if (puedeMarcar && c[campo] !== anio) await onMarcar(c, campo);
+  };
+
   const abrirVista = async () => {
     const blob = blobRef.current || (await generarTarjeta(pila, c.dias_faltantes));
     if (!blob) return;
@@ -281,7 +298,7 @@ En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regala
             texto={texto}
             etiqueta={tarjetaDisponible ? "Copiar tarjeta y escribir" : "Enviar saludo"}
             className={`mt-4 ${esHoy ? "btn bg-white text-wine hover:bg-cream" : "btn-excel"}`}
-            alEnviar={() => registrarEnvio(c, esHoy ? ORIGEN.CUMPLE_SALUDO : ORIGEN.CUMPLE_CUPON)}
+            alEnviar={anotarEnvio}
             preparar={tarjetaDisponible ? copiarTarjeta : undefined}
           />
         ) : (
