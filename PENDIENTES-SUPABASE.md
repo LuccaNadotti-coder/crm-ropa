@@ -6,10 +6,11 @@ Ninguno borra datos.
 
 ## Pendiente
 
-Nada. Todos los scripts están corridos y comprobados contra la base.
+| Script | Para qué | Si no se corre |
+| --- | --- | --- |
+| `supabase-reparar-fechas-de-marcado.sql` | Al correr la v8 se usó el `UPDATE` opcional, que le puso a las 125 casillas tildadas la fecha de ese día. Este script les devuelve la fecha real a las 12 que dejaron rastro y deja las otras 72 en blanco | El total del mes sale bien, pero cualquier rango que no incluya el 21/9/2026 da 0, porque todas las casillas dicen ese día |
 
-Cuando aparezca uno nuevo, `supabase-TODO-PENDIENTE.sql` vuelve a tener lo que
-falta, listo para copiar y pegar de una sola vez.
+Las migraciones (v4 a v8) están todas corridas y comprobadas contra la base.
 
 ## Para revisar, no cambia nada
 
