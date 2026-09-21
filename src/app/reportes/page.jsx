@@ -54,6 +54,32 @@ function diaDe(timestamp) {
 }
 
 /**
+ * La fecha de una casilla tildada que no guardó el día.
+ *
+ * El saludo se manda EL DÍA del cumpleaños: es lo que significa la casilla y
+ * es como funciona la pantalla de Cumpleaños. Así que el cumpleaños de este
+ * año ES la fecha. Para la invitación, que va "los días previos", el día puede
+ * moverse un poco, pero el mes queda bien, que es lo que se mira en el reporte.
+ *
+ * Si el cumpleaños todavía no llegó, se usa hoy: la casilla ya está tildada,
+ * así que el mensaje se mandó, y solo pudo ser en estos días. Nunca devuelve
+ * una fecha futura.
+ *
+ * Es la misma regla que aplica supabase-completar-fechas-desde-el-cumpleanos.sql
+ * sobre la base. Está también acá para que los números salgan bien aunque ese
+ * script no se haya corrido.
+ */
+function estimarFecha(cliente) {
+  const nac = cliente.fecha_nacimiento;
+  if (!nac) return null;
+  const [, m, d] = String(nac).slice(0, 10).split("-");
+  if (!m || !d) return null;
+  const hoy = fechaHoyLima();
+  const esteAnio = `${hoy.slice(0, 4)}-${m}-${d}`;
+  return esteAnio <= hoy ? esteAnio : hoy;
+}
+
+/**
  * Atajos del selector de fechas. Se calculan al momento de tocarlos, no al
  * cargar la página, para que "hoy" siga siendo hoy si alguien deja el CRM
  * abierto de un día para otro.
@@ -196,25 +222,29 @@ function Contenido({ perfil }) {
    * saludo. Las campañas, en cambio, sí se cuentan por fila: ahí un cliente
    * puede recibir un mensaje por cada campaña del mes.
    *
-   * Las tildes viejas no traen fecha (se guardaba solo el año, ver migración
-   * v8), así que no se pueden ubicar dentro de un rango. Esas salen aparte,
-   * en "sinFecha", en vez de desaparecer o de inventarles un día.
+   * Las tildes de antes de la migración v8 no traen fecha: se guardaba solo el
+   * año. Para esas se usa el cumpleaños, que es de donde sale la fecha de
+   * verdad (ver estimarFecha). Así entran en el mes que les toca en vez de
+   * quedar afuera de la cuenta, que era lo que impedía responder "cuántas
+   * clientas saludamos en agosto". Se devuelven aparte en "estimados" para
+   * poder decir en pantalla cuántas son aproximadas.
    */
   const contarCumple = (enviosDelTipo, campoAnio, campoFecha) => {
     const ids = new Set(enviosDelTipo.map((e) => e.cliente_id));
-    let sinFecha = 0;
+    let estimados = 0, sinFecha = 0;
 
     enAlcance.forEach((c) => {
       if (c[campoAnio] !== anioActual) return;
-      const fecha = c[campoFecha] ? String(c[campoFecha]).slice(0, 10) : null;
-      if (fecha) {
-        if (fecha >= desde && fecha <= hasta) ids.add(c.id);
-      } else if (!ids.has(c.id)) {
-        sinFecha++;
+      const guardada = c[campoFecha] ? String(c[campoFecha]).slice(0, 10) : null;
+      const fecha = guardada || estimarFecha(c);
+      if (!fecha) { if (!ids.has(c.id)) sinFecha++; return; }
+      if (fecha >= desde && fecha <= hasta) {
+        if (!guardada && !ids.has(c.id)) estimados++;
+        ids.add(c.id);
       }
     });
 
-    return { ids, enRango: ids.size, sinFecha, clics: enviosDelTipo.length };
+    return { ids, enRango: ids.size, estimados, sinFecha, clics: enviosDelTipo.length };
   };
 
   const saludoResumen = useMemo(
@@ -231,6 +261,7 @@ function Contenido({ perfil }) {
   const saludosPersonas = saludoResumen.enRango;
   const cuponesPersonas = cuponResumen.enRango;
   const marcadosSinFecha = saludoResumen.sinFecha + cuponResumen.sinFecha;
+  const marcadosEstimados = saludoResumen.estimados + cuponResumen.estimados;
 
   /** Las fichas de esos clientes, para poder agruparlas por tienda. */
   const fichasDe = (ids) => enAlcance.filter((c) => ids.has(c.id));
@@ -689,13 +720,20 @@ function Contenido({ perfil }) {
               {catalogos.length > 0 && ` Además se enviaron ${catalogos.length} catálogos en el mismo periodo.`}
             </p>
 
-            {marcadosSinFecha > 0 && (
+            {marcadosEstimados > 0 && (
               <p className="mt-2 rounded-lg bg-brass-soft px-3 py-2.5 text-xs text-ink-soft">
-                Hay <strong>{marcadosSinFecha}</strong> casillas tildadas este año que no guardaron
-                el día en que se marcaron, así que no se pueden ubicar dentro de un rango y no
-                entran en los números de arriba. Son de antes de esta versión del CRM: el dato del
-                día nunca se llegó a guardar y no se puede recuperar. Las que se tilden de ahora en
-                adelante sí quedan con fecha y cuentan normal.
+                De estos, <strong>{marcadosEstimados}</strong> se ubican por la fecha del
+                cumpleaños, porque la casilla se tildó antes de que el CRM guardara el día. El
+                saludo va el día del cumpleaños, así que el mes es correcto; en las invitaciones,
+                que van los días previos, el día puede moverse un poco. Lo que se tilde de ahora en
+                adelante queda con su fecha exacta.
+              </p>
+            )}
+
+            {marcadosSinFecha > 0 && (
+              <p className="mt-2 rounded-lg bg-alerta-soft px-3 py-2.5 text-xs text-alerta">
+                Hay <strong>{marcadosSinFecha}</strong> casillas tildadas que no tienen fecha ni
+                cumpleaños con el que ubicarlas, así que no entran en los números de arriba.
               </p>
             )}
 

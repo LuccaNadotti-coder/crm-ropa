@@ -6,11 +6,12 @@ Ninguno borra datos.
 
 ## Pendiente
 
-Nada. Todas las migraciones (v4 a v9) y la reparacion de fechas estan corridas
-y comprobadas contra la base el 21 de setiembre de 2026.
+| Script | Para qué | Si no se corre |
+| --- | --- | --- |
+| `supabase-completar-fechas-desde-el-cumpleanos.sql` | Les pone fecha a las 104 casillas tildadas que no la tienen, usando el cumpleaños del cliente (el saludo va el día del cumpleaños, así que esa ES la fecha) | El CRM igual las cuenta, porque aplica la misma regla al vuelo. Correrlo deja el dato guardado en la base, para que también lo vean el Excel y cualquier consulta |
 
-Cuando aparezca algo nuevo, `supabase-TODO-PENDIENTE.sql` vuelve a tener lo que
-falta, listo para copiar y pegar de una sola vez.
+Las migraciones (v4 a v9) y la reparación de fechas están corridas y
+comprobadas contra la base.
 
 ## Para revisar, no cambia nada
 
