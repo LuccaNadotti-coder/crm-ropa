@@ -1,42 +1,61 @@
-﻿-- =========================================================
+-- =========================================================
 -- SFIDA CRM — LO QUE FALTA CORRER (actualizado)
 --
--- Los scripts v4, v5 y v6 ya estan corridos. Faltan dos:
---
---   v7 — el campo "nombre para los saludos" en la ficha del cliente.
---   v8 — el dia en que se tilda cada casilla de Cumpleanos. Sin esto, el
---        reporte no puede contar las casillas tildadas dentro de un rango
---        de fechas, que es la razon por la que salia 1.
---
--- Corre este archivo y despues supabase-migracion-v8-fecha-de-marcado.sql.
+-- Comprobado contra la base el 21 de setiembre de 2026: los scripts v4, v5,
+-- v6 y v7 YA estan corridos (la columna nombre_pila existe y la vista de
+-- cumpleanos la lleva). Lo unico pendiente es el v8.
 --
 -- Copia TODO este archivo, pegalo en Supabase > SQL Editor > New query
 -- y dale Run.
 -- =========================================================
 
+
 -- =========================================================
--- v7 — Nombre para los saludos
+-- v8 — La fecha en que se marcó cada casilla de Cumpleaños
 --
--- Hay fichas cargadas con el apellido adelante, por ejemplo
--- "VILLANUEVA BRAVO DE VIZA SOFIA IRENE". El CRM saluda con la primera
--- palabra del nombre, así que a esa clienta le escribía "Hola Villanueva".
+-- EL PROBLEMA QUE ARREGLA
 --
--- Adivinar cuál palabra es el nombre no se puede hacer bien (hay apellidos
--- que son nombres y al revés), así que la ficha gana un campo opcional:
+-- En la pantalla de Cumpleaños hay dos casillas por cliente:
 --
---     nombre_pila
+--     [x] Carta de cumpleaños enviada
+--     [x] Tarjeta de invitación / descuento
 --
--- Si está vacío, todo sigue igual que hasta ahora. Si se llena, ese nombre es
--- el que va en el WhatsApp y en la tarjeta de cumpleaños.
+-- Hasta ahora, tildarlas guardaba SOLO EL AÑO:
 --
--- Cómo correrlo: panel de Supabase > SQL Editor > pegar todo > Run.
--- Es seguro repetirlo. No borra ni cambia ningún dato.
+--     saludo_cumple_anio = 2026
+--     promo_enviada_anio = 2026
+--
+-- Sin día ni mes. Por eso el reporte, que se pide por rango de fechas
+-- ("del 1 al 21 de setiembre"), no las podía contar: no hay con qué saber si
+-- esa tilde cae adentro o afuera del rango. Se veían diez casillas tildadas
+-- en la pantalla y el reporte decía 1.
+--
+-- Este script agrega el día:
+--
+--     saludo_cumple_fecha
+--     promo_enviada_fecha
+--
+-- De acá en adelante, cada tilde guarda la fecha y el reporte la cuenta.
+--
+-- IMPORTANTE, PARA QUE NO HAYA SORPRESA: las casillas que YA estaban tildadas
+-- no se pueden recuperar con su día real, porque ese dato nunca se guardó. El
+-- CRM las va a mostrar aparte, como "marcados este año sin fecha", para que se
+-- vean y no se pierdan. Las nuevas sí entran al rango con normalidad.
+--
+-- Cómo correrlo: panel de Supabase > SQL Editor > New query > pegar todo > Run.
+-- Es seguro repetirlo. No borra ni cambia ningún dato existente.
 -- =========================================================
 
+alter table clientes add column if not exists saludo_cumple_fecha date;
+alter table clientes add column if not exists promo_enviada_fecha date;
+
+-- La vista de abajo usa nombre_pila, que llega con la v7. Se asegura acá para
+-- que este script funcione aunque la v7 todavía no se haya corrido, y así los
+-- dos se puedan correr en cualquier orden.
 alter table clientes add column if not exists nombre_pila text;
 
--- La vista de cumpleaños se rehace para que lleve el campo nuevo
--- (y el género, que entró en la v4).
+-- La vista de cumpleaños se rehace para que lleve los campos nuevos
+-- (y nombre_pila, que entró en la v7, y genero, que entró en la v4).
 drop view if exists vista_cumpleanos;
 
 create view vista_cumpleanos
@@ -55,6 +74,8 @@ select
   fecha_nacimiento,
   saludo_cumple_anio,
   promo_enviada_anio,
+  saludo_cumple_fecha,
+  promo_enviada_fecha,
   extract(day from fecha_nacimiento) as dia,
   extract(month from fecha_nacimiento) as mes,
   case
@@ -65,21 +86,38 @@ select
 from clientes;
 
 -- ---------------------------------------------------------
--- COMPROBAR — deben aparecer las columnas nombre_pila y genero
+-- COMPROBAR — deben aparecer las dos columnas de fecha
 -- ---------------------------------------------------------
-select nombre, nombre_pila, genero, dias_faltantes
-from vista_cumpleanos
-order by dias_faltantes
-limit 5;
+select column_name, data_type
+from information_schema.columns
+where table_name = 'clientes'
+  and column_name in ('saludo_cumple_anio', 'saludo_cumple_fecha',
+                      'promo_enviada_anio', 'promo_enviada_fecha')
+order by column_name;
 
 -- ---------------------------------------------------------
--- OPCIONAL — para encontrar las fichas a revisar
+-- CUÁNTAS CASILLAS HAY TILDADAS HOY
 --
--- Lista los clientes cuyo nombre tiene 4 palabras o más, que son los casos
--- donde suele venir el apellido adelante. No cambia nada: solo los muestra.
+-- "sin_fecha" son las de antes de este script: se siguen viendo en el CRM,
+-- pero fuera del rango, en la línea de "marcados este año sin fecha".
 -- ---------------------------------------------------------
--- select nombre, tienda
--- from clientes
--- where array_length(string_to_array(trim(nombre), ' '), 1) >= 4
--- order by nombre;
+select
+  count(*) filter (where saludo_cumple_anio = extract(year from current_date)::int) as saludo_marcados,
+  count(*) filter (where saludo_cumple_anio = extract(year from current_date)::int
+                     and saludo_cumple_fecha is null)                               as saludo_sin_fecha,
+  count(*) filter (where promo_enviada_anio = extract(year from current_date)::int) as invitacion_marcados,
+  count(*) filter (where promo_enviada_anio = extract(year from current_date)::int
+                     and promo_enviada_fecha is null)                               as invitacion_sin_fecha
+from clientes;
 
+-- ---------------------------------------------------------
+-- OPCIONAL — si sabes que todo lo tildado se mandó en un rango conocido,
+-- se le puede poner esa fecha a mano. Está comentado a propósito: cámbiale
+-- la fecha y quítale los guiones solo si estás seguro.
+--
+-- update clientes set saludo_cumple_fecha = date '2026-09-21'
+--  where saludo_cumple_anio = 2026 and saludo_cumple_fecha is null;
+--
+-- update clientes set promo_enviada_fecha = date '2026-09-21'
+--  where promo_enviada_anio = 2026 and promo_enviada_fecha is null;
+-- ---------------------------------------------------------

@@ -105,23 +105,19 @@ order by cmd, policyname;
 -- ---------------------------------------------------------
 -- 5) LA FECHA CON LA QUE SE GUARDA CADA ENVÍO
 --
--- La base corre en UTC y Lima está 5 horas atrás. Si la columna "fecha" se
--- llena sola con el reloj de la base, todo lo enviado después de las 7 pm
--- quedaba anotado al día siguiente, y los envíos del último día del mes caían
--- en el mes siguiente.
+-- La base corre en UTC y Lima está 5 horas atrás. Si acá sale un
+-- "column_default" con now() o current_date, entonces la fecha la ponía el
+-- reloj de la base: todo lo enviado después de las 7 pm quedaba anotado al
+-- día siguiente, y lo del último día del mes caía en el mes siguiente.
 --
--- Desde ahora el CRM manda la fecha de Lima al guardar, así que esto ya no
--- vuelve a pasar. Esta consulta es para ver cuánto se corrió lo viejo.
+-- Desde la versión actual el CRM manda la fecha de Lima al guardar, así que
+-- esto ya no vuelve a pasar. Lo viejo queda como está: la tabla no guarda la
+-- hora real del envío (no tiene created_at), así que no hay forma de saber
+-- cuáles se corrieron de día ni de corregirlas.
 -- ---------------------------------------------------------
 select column_name, data_type, column_default
 from information_schema.columns
 where table_name = 'envios_whatsapp' and column_name = 'fecha';
-
--- Envíos anotados en un día distinto al que realmente se hicieron en Lima.
--- Si la tabla no tiene columna created_at, esta consulta da error: ignórala.
-select count(*) as envios_con_fecha_corrida
-from envios_whatsapp
-where fecha is distinct from (created_at at time zone 'America/Lima')::date;
 
 
 -- ---------------------------------------------------------
