@@ -6,12 +6,10 @@ Ninguno borra datos.
 
 ## Pendiente
 
-| Script | Para qué | Si no se corre |
-| --- | --- | --- |
-| `supabase-migracion-v8-fecha-de-marcado.sql` | Guarda el DÍA en que se tilda cada casilla de Cumpleaños, no solo el año | El reporte no puede ubicar las casillas dentro de un rango de fechas: se ven varias tildadas en Cumpleaños y el reporte sigue diciendo 1 |
+Nada. Todos los scripts están corridos y comprobados contra la base.
 
-El archivo `supabase-TODO-PENDIENTE.sql` tiene siempre lo que falta, listo
-para copiar y pegar de una sola vez.
+Cuando aparezca uno nuevo, `supabase-TODO-PENDIENTE.sql` vuelve a tener lo que
+falta, listo para copiar y pegar de una sola vez.
 
 ## Para revisar, no cambia nada
 
@@ -27,6 +25,7 @@ para copiar y pegar de una sola vez.
 | `supabase-migracion-v5-reporte-cumpleanos.sql` | Tipos de envío nuevos e índice por fecha para el reporte | Se comprueba solo cuando se manda el primer saludo: el contador de Reportes debe pasar de 0 a 1 |
 | `supabase-migracion-v6-adjunto-campanas.sql` | Espacio donde se guarda el archivo de las campañas | Comprobado: el bucket `campanas` existe y es público |
 | `supabase-migracion-v7-nombre-de-saludo.sql` | Campo "nombre para los saludos" en la ficha del cliente | Comprobado el 21/9/2026 contra la base: la columna `nombre_pila` existe y la vista de cumpleaños la lleva |
+| `supabase-migracion-v8-fecha-de-marcado.sql` | El día en que se tilda cada casilla de Cumpleaños, para que el reporte las pueda contar por rango | Comprobado el 21/9/2026 contra la base: `saludo_cumple_fecha` y `promo_enviada_fecha` existen en `clientes` y en la vista, y la vista sigue respetando las reglas por tienda |
 
 Cada script termina con una consulta de comprobación: si devuelve filas con lo
 que dice el comentario, quedó bien.
