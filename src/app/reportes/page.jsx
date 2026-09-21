@@ -230,21 +230,41 @@ function Contenido({ perfil }) {
    * poder decir en pantalla cuántas son aproximadas.
    */
   const contarCumple = (enviosDelTipo, campoAnio, campoFecha) => {
-    const ids = new Set(enviosDelTipo.map((e) => e.cliente_id));
-    let estimados = 0, sinFecha = 0;
+    // Un renglón por cliente, con la fecha que le corresponde y de dónde salió.
+    // El Excel lo usa para que su hoja de detalle liste a las mismas personas
+    // que cuenta el total: antes listaba solo los clics del botón verde y no
+    // cuadraba con el número de arriba.
+    const info = new Map();
 
+    enviosDelTipo.forEach((e) => {
+      const previo = info.get(e.cliente_id);
+      const fecha = String(e.fecha || "");
+      if (!previo || fecha < previo.fecha) info.set(e.cliente_id, { fecha, fuente: "Botón verde" });
+    });
+
+    let estimados = 0, sinFecha = 0;
     enAlcance.forEach((c) => {
       if (c[campoAnio] !== anioActual) return;
       const guardada = c[campoFecha] ? String(c[campoFecha]).slice(0, 10) : null;
       const fecha = guardada || estimarFecha(c);
-      if (!fecha) { if (!ids.has(c.id)) sinFecha++; return; }
-      if (fecha >= desde && fecha <= hasta) {
-        if (!guardada && !ids.has(c.id)) estimados++;
-        ids.add(c.id);
-      }
+      if (!fecha) { if (!info.has(c.id)) sinFecha++; return; }
+      if (fecha < desde || fecha > hasta) return;
+      if (info.has(c.id)) return;   // ya lo contó el botón verde, es la misma persona
+      if (!guardada) estimados++;
+      info.set(c.id, {
+        fecha,
+        fuente: guardada ? "Casilla marcada" : "Casilla · fecha estimada del cumpleaños",
+      });
     });
 
-    return { ids, enRango: ids.size, estimados, sinFecha, clics: enviosDelTipo.length };
+    return {
+      info,
+      ids: new Set(info.keys()),
+      enRango: info.size,
+      estimados,
+      sinFecha,
+      clics: enviosDelTipo.length,
+    };
   };
 
   const saludoResumen = useMemo(
@@ -396,8 +416,11 @@ function Contenido({ perfil }) {
         { Dato: "Alcance", Valor: alcance },
         { Dato: "Clientes saludados por su cumpleaños", Valor: saludosPersonas },
         { Dato: "Clientes invitados con el 15%", Valor: cuponesPersonas },
+        ...(marcadosEstimados > 0
+          ? [{ Dato: "De esos, ubicados por la fecha del cumpleaños", Valor: marcadosEstimados }]
+          : []),
         ...(marcadosSinFecha > 0
-          ? [{ Dato: "Casillas tildadas sin fecha (no entran en el rango)", Valor: marcadosSinFecha }]
+          ? [{ Dato: "Casillas sin fecha ni cumpleaños (no entran)", Valor: marcadosSinFecha }]
           : []),
         ...(cumpleSinDetalle.length > 0
           ? [{ Dato: "Cumpleaños sin detalle (envíos antiguos)", Valor: cumpleSinDetalle.length }]
@@ -408,22 +431,33 @@ function Contenido({ perfil }) {
         { Dato: "Clics en el botón verde (cumpleaños)", Valor: saludos.length + cupones.length + cumpleSinDetalle.length },
       ]);
 
-      const etiquetaTipo = {
-        [ORIGEN.CUMPLE_SALUDO]: "Saludo de cumpleaños",
-        [ORIGEN.CUMPLE_CUPON]: "Cupón 15%",
-        [ORIGEN.CUMPLE_ANTIGUO]: "Cumpleaños (sin detalle)",
-      };
-      const detalle = [...saludos, ...cupones, ...cumpleSinDetalle]
-        .slice()
-        .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
-        .map((e) => ({
+      // Una fila por cliente contado, del mismo conjunto que da los totales.
+      // La columna "De dónde sale la fecha" dice cuáles son exactas y cuáles
+      // estimadas, para que nadie tome por exacto algo que no lo es.
+      const filasDe = (resumen, tipo) =>
+        [...resumen.info.entries()].map(([id, { fecha, fuente }]) => ({
+          Fecha: fecha,
+          Tipo: tipo,
+          Cliente: porId[id]?.nombre || "(cliente eliminado)",
+          Telefono: porId[id]?.telefono || "",
+          Tienda: porId[id]?.tienda || "",
+          Asesora: porId[id]?.asesora || "",
+          "De dónde sale la fecha": fuente,
+        }));
+
+      const detalle = [
+        ...filasDe(saludoResumen, "Saludo de cumpleaños"),
+        ...filasDe(cuponResumen, "Invitación 15%"),
+        ...cumpleSinDetalle.map((e) => ({
           Fecha: e.fecha || "",
-          Tipo: etiquetaTipo[e.origen] || e.origen,
+          Tipo: "Cumpleaños (envío antiguo, sin detalle)",
           Cliente: porId[e.cliente_id]?.nombre || "(cliente eliminado)",
           Telefono: porId[e.cliente_id]?.telefono || "",
           Tienda: e.tienda || "",
           Asesora: porId[e.cliente_id]?.asesora || "",
-        }));
+          "De dónde sale la fecha": "Botón verde",
+        })),
+      ].sort((a, b) => String(a.Fecha).localeCompare(String(b.Fecha)));
       agregar("Cumpleanos", detalle.length > 0 ? detalle : [{ Fecha: "", Tipo: "Sin envíos en el rango" }]);
 
       const nuevos = nuevosRango.map((c) => ({
