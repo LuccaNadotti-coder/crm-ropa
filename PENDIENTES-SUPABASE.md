@@ -9,6 +9,7 @@ Ninguno borra datos.
 | Script | Para qué | Si no se corre |
 | --- | --- | --- |
 | `supabase-migracion-v7-nombre-de-saludo.sql` | Campo opcional "nombre para los saludos" en la ficha del cliente, para las fichas que tienen el apellido adelante | El campo no aparece en Clientes y los saludos siguen usando la primera palabra del nombre ("Hola Villanueva") |
+| `supabase-migracion-v8-fecha-de-marcado.sql` | Guarda el DÍA en que se tilda cada casilla de Cumpleaños, no solo el año | El reporte no puede ubicar las casillas dentro de un rango de fechas: se ven diez tildadas en Cumpleaños y el reporte sigue diciendo 1 |
 
 El archivo `supabase-TODO-PENDIENTE.sql` tiene siempre lo que falta, listo
 para copiar y pegar de una sola vez.

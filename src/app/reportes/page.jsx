@@ -180,36 +180,68 @@ function Contenido({ perfil }) {
     ];
   }, [enviosEnAlcance]);
 
-  /**
-   * A cuántas personas distintas se les escribió.
-   *
-   * Los cumpleaños se cuentan así y no por filas: cada fila es un clic en el
-   * botón verde, y volver a tocarlo porque el chat no abrió, porque se cerró
-   * la ventana o porque se reintentó al rato sumaba otra vez a la misma
-   * clienta. Como nadie cumple años dos veces en un rango, la fila repetida
-   * siempre es el mismo saludo, no uno nuevo: por eso el número del tablero
-   * inflaba y no cuadraba con las casillas de la pantalla de Cumpleaños.
-   *
-   * Las campañas sí se cuentan por filas: ahí un mismo cliente puede recibir
-   * un mensaje por cada campaña del mes y cada uno es un envío de verdad.
-   */
-  const personas = (lista) => new Set(lista.map((e) => e.cliente_id)).size;
-  const saludosPersonas = personas(saludos);
-  const cuponesPersonas = personas(cupones);
+  const anioActual = new Date().getFullYear();
 
-  /** La primera fila de cada cliente, para contar por tienda sin repetir. */
-  const unaVezPorCliente = (lista) => {
-    const vistos = new Set();
-    return lista.filter((e) => {
-      if (vistos.has(e.cliente_id)) return false;
-      vistos.add(e.cliente_id);
-      return true;
+  /**
+   * Cuántos clientes recibieron su saludo / su invitación en el rango.
+   *
+   * Hay DOS formas de que quede constancia, y el reporte tiene que mirar las
+   * dos, porque las tiendas usan las dos:
+   *
+   *   1. El botón verde, que anota una fila en envios_whatsapp.
+   *   2. La casilla de la pantalla de Cumpleaños, tildada a mano. Esta es la
+   *      que faltaba: antes el reporte solo miraba la 1, así que se veían diez
+   *      casillas tildadas y el reporte decía 1.
+   *
+   * Se cuenta por cliente, no por fila: quien tocó el botón Y tildó la casilla
+   * es una sola persona saludada, no dos. Lo mismo con los reintentos, cuando
+   * el chat no abrió y se volvió a tocar el botón sobre la misma clienta: como
+   * nadie cumple años dos veces en un rango, esa fila repetida es el mismo
+   * saludo. Las campañas, en cambio, sí se cuentan por fila: ahí un cliente
+   * puede recibir un mensaje por cada campaña del mes.
+   *
+   * Las tildes viejas no traen fecha (se guardaba solo el año, ver migración
+   * v8), así que no se pueden ubicar dentro de un rango. Esas salen aparte,
+   * en "sinFecha", en vez de desaparecer o de inventarles un día.
+   */
+  const contarCumple = (enviosDelTipo, campoAnio, campoFecha) => {
+    const ids = new Set(enviosDelTipo.map((e) => e.cliente_id));
+    let sinFecha = 0;
+
+    enAlcance.forEach((c) => {
+      if (c[campoAnio] !== anioActual) return;
+      const fecha = c[campoFecha] ? String(c[campoFecha]).slice(0, 10) : null;
+      if (fecha) {
+        if (fecha >= desde && fecha <= hasta) ids.add(c.id);
+      } else if (!ids.has(c.id)) {
+        sinFecha++;
+      }
     });
+
+    return { ids, enRango: ids.size, sinFecha, clics: enviosDelTipo.length };
   };
 
-  /** "3 envíos" solo cuando hubo reintentos, para que se note de dónde sale. */
-  const detalleReintentos = (lista, unicos) =>
-    lista.length > unicos ? ` · ${lista.length} clics en total` : "";
+  const saludoResumen = useMemo(
+    () => contarCumple(saludos, "saludo_cumple_anio", "saludo_cumple_fecha"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saludos, enAlcance, desde, hasta, anioActual]
+  );
+  const cuponResumen = useMemo(
+    () => contarCumple(cupones, "promo_enviada_anio", "promo_enviada_fecha"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cupones, enAlcance, desde, hasta, anioActual]
+  );
+
+  const saludosPersonas = saludoResumen.enRango;
+  const cuponesPersonas = cuponResumen.enRango;
+  const marcadosSinFecha = saludoResumen.sinFecha + cuponResumen.sinFecha;
+
+  /** Las fichas de esos clientes, para poder agruparlas por tienda. */
+  const fichasDe = (ids) => enAlcance.filter((c) => ids.has(c.id));
+
+  /** "· 3 clics en total" solo cuando el botón se tocó más veces que clientes. */
+  const detalleReintentos = ({ enRango, clics }) =>
+    clics > enRango ? ` · ${clics} clics en total` : "";
 
   /** Clientes registrados dentro del rango elegido. */
   const nuevosRango = useMemo(() => {
@@ -337,6 +369,9 @@ function Contenido({ perfil }) {
         { Dato: "Alcance", Valor: alcance },
         { Dato: "Clientes saludados por su cumpleaños", Valor: saludosPersonas },
         { Dato: "Clientes invitados con el 15%", Valor: cuponesPersonas },
+        ...(marcadosSinFecha > 0
+          ? [{ Dato: "Casillas tildadas sin fecha (no entran en el rango)", Valor: marcadosSinFecha }]
+          : []),
         ...(cumpleSinDetalle.length > 0
           ? [{ Dato: "Cumpleaños sin detalle (envíos antiguos)", Valor: cumpleSinDetalle.length }]
           : []),
@@ -625,7 +660,7 @@ function Contenido({ perfil }) {
               <TarjetaKpi
                 etiqueta="Saludos de cumpleaños"
                 valor={saludosPersonas}
-                detalle={`Clientes saludados el mismo día${detalleReintentos(saludos, saludosPersonas)}`}
+                detalle={`Clientes saludados el mismo día${detalleReintentos(saludoResumen)}`}
                 tono="wine"
                 icono={<IconoTorta size={20} />}
                 cargando={cargandoEnvios}
@@ -633,7 +668,7 @@ function Contenido({ perfil }) {
               <TarjetaKpi
                 etiqueta="Invitaciones con 15%"
                 valor={cuponesPersonas}
-                detalle={`Clientes invitados los días previos${detalleReintentos(cupones, cuponesPersonas)}`}
+                detalle={`Clientes invitados los días previos${detalleReintentos(cuponResumen)}`}
                 tono="brass"
                 cargando={cargandoEnvios}
               />
@@ -653,11 +688,20 @@ function Contenido({ perfil }) {
             </div>
 
             <p className="mt-3 text-xs text-ink-faint">
-              Estos números cuentan los WhatsApp abiertos desde el botón verde del CRM. Lo que se
-              manda desde el celular por fuera, o lo que solo se tilda a mano en Cumpleaños, no
-              llega acá.
+              Cuentan tanto los WhatsApp abiertos con el botón verde como las casillas tildadas a
+              mano en Cumpleaños. Si de un cliente hay las dos cosas, se cuenta una sola vez.
               {catalogos.length > 0 && ` Además se enviaron ${catalogos.length} catálogos en el mismo periodo.`}
             </p>
+
+            {marcadosSinFecha > 0 && (
+              <p className="mt-2 rounded-lg bg-brass-soft px-3 py-2.5 text-xs text-ink-soft">
+                Hay <strong>{marcadosSinFecha}</strong> casillas tildadas este año que no guardaron
+                el día en que se marcaron, así que no se pueden ubicar dentro de un rango y no
+                entran en los números de arriba. Son de antes de esta versión del CRM: el dato del
+                día nunca se llegó a guardar y no se puede recuperar. Las que se tilden de ahora en
+                adelante sí quedan con fecha y cuentan normal.
+              </p>
+            )}
 
             {cumpleSinDetalle.length > 0 && (
               <p className="mt-2 text-xs text-ink-faint">
@@ -669,10 +713,10 @@ function Contenido({ perfil }) {
             {verTodo && !filtroTienda && (
               <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
                 <Panel titulo="Saludos por tienda" subtitulo={`${desde} a ${hasta}`}>
-                  <BarrasHorizontales datos={agrupar(unaVezPorCliente(saludos), "tienda", "Sin tienda")} total={saludosPersonas} />
+                  <BarrasHorizontales datos={agrupar(fichasDe(saludoResumen.ids), "tienda", "Sin tienda")} total={saludosPersonas} />
                 </Panel>
                 <Panel titulo="Invitaciones por tienda" subtitulo={`${desde} a ${hasta}`}>
-                  <BarrasHorizontales datos={agrupar(unaVezPorCliente(cupones), "tienda", "Sin tienda")} total={cuponesPersonas} />
+                  <BarrasHorizontales datos={agrupar(fichasDe(cuponResumen.ids), "tienda", "Sin tienda")} total={cuponesPersonas} />
                 </Panel>
                 <Panel titulo="Clientes nuevos por tienda" subtitulo={`${desde} a ${hasta}`}>
                   <BarrasHorizontales datos={agrupar(nuevosRango, "tienda", "Sin tienda")} total={nuevosRango.length} />

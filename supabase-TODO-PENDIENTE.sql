@@ -1,8 +1,14 @@
 ﻿-- =========================================================
 -- SFIDA CRM — LO QUE FALTA CORRER (actualizado)
 --
--- Los scripts v4, v5 y v6 ya estan corridos. Lo unico pendiente es el v7,
--- que agrega el campo "nombre para los saludos" a la ficha del cliente.
+-- Los scripts v4, v5 y v6 ya estan corridos. Faltan dos:
+--
+--   v7 — el campo "nombre para los saludos" en la ficha del cliente.
+--   v8 — el dia en que se tilda cada casilla de Cumpleanos. Sin esto, el
+--        reporte no puede contar las casillas tildadas dentro de un rango
+--        de fechas, que es la razon por la que salia 1.
+--
+-- Corre este archivo y despues supabase-migracion-v8-fecha-de-marcado.sql.
 --
 -- Copia TODO este archivo, pegalo en Supabase > SQL Editor > New query
 -- y dale Run.

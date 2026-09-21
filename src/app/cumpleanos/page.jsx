@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { traerTodas } from "@/lib/db";
-import { registrarEnvio, ORIGEN } from "@/lib/envios";
+import { traerTodas, existeColumna } from "@/lib/db";
+import { registrarEnvio, ORIGEN, fechaHoyLima } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, diaYMes, edadDesde, enlaceWhatsApp, telefonoEsValido, nombreDeTrato,
@@ -79,20 +79,40 @@ function Contenido({ perfil }) {
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  /**
+   * Tildar una casilla guarda el año Y el día.
+   *
+   * El año solo no alcanzaba: Reportes se pide por rango de fechas y con
+   * "2026" a secas no hay forma de saber si la tilde cae dentro del rango o
+   * fuera, así que las casillas tildadas no se contaban en ninguna parte. De
+   * ahí venía ver diez tildes en esta pantalla y un 1 en el reporte.
+   *
+   * La columna de fecha llega con la migración v8; si todavía no se corrió,
+   * se guarda solo el año, como antes, en vez de romper el guardado.
+   */
   const marcarTarea = async (cliente, campo) => {
     if (!puedeMarcar) return;
+    const campoFecha = campo === "saludo_cumple_anio" ? "saludo_cumple_fecha" : "promo_enviada_fecha";
     const yaHecho = cliente[campo] === anio;
     const nuevo = yaHecho ? null : anio;
+    const nuevaFecha = yaHecho ? null : fechaHoyLima();
     setMarcandoId(cliente.id + campo);
 
-    // Se actualiza en pantalla de inmediato y se revierte si falla.
-    setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, [campo]: nuevo } : c)));
+    const cambio = { [campo]: nuevo };
+    if (await existeColumna("clientes", campoFecha, supabase)) cambio[campoFecha] = nuevaFecha;
 
-    const { error } = await supabase.from("clientes").update({ [campo]: nuevo }).eq("id", cliente.id);
+    // Se actualiza en pantalla de inmediato y se revierte si falla.
+    setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, ...cambio } : c)));
+
+    const { error } = await supabase.from("clientes").update(cambio).eq("id", cliente.id);
     setMarcandoId(null);
 
     if (error) {
-      setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, [campo]: cliente[campo] } : c)));
+      setClientes((prev) => prev.map((c) => (
+        c.id === cliente.id
+          ? { ...c, [campo]: cliente[campo], [campoFecha]: cliente[campoFecha] }
+          : c
+      )));
       avisos.error("No se pudo guardar: " + error.message);
     }
   };
