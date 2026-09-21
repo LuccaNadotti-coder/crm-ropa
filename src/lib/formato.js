@@ -45,6 +45,37 @@ export function fechaCorta(iso) {
   return `${Number(d)} ${MESES_CORTOS[Number(m) - 1]} ${a}`;
 }
 
+/**
+ * El día de un created_at, en hora de Lima, como "YYYY-MM-DD".
+ *
+ * created_at guarda un INSTANTE, no un día, y las tiendas están en Lima. Hay
+ * que decir en qué zona se lo quiere leer o el resultado cambia solo:
+ *
+ *   - Dejándoselo al navegador, una PC con la zona mal configurada cambia los
+ *     números del reporte sin que nadie se entere.
+ *   - Usando .toISOString() se lee en UTC, que en Lima adelanta 5 horas: todo
+ *     lo cargado después de las 7 pm aparecía al día siguiente.
+ *
+ * Por eso se pide America/Lima explícitamente. Una misma alta da el mismo día
+ * en la lista, en el Excel y en el gráfico por mes, se mire desde donde se
+ * mire. Ver supabase-migracion-v9-fecha-de-alta-en-hora-de-lima.sql, que es
+ * la otra mitad del arreglo.
+ */
+const DIA_LIMA = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit",
+});
+
+export function diaEnLima(instante) {
+  if (!instante) return null;
+  const f = new Date(instante);
+  return isNaN(f) ? null : DIA_LIMA.format(f);
+}
+
+/** El mismo día, ya escrito para mostrar: "20 Set 2026". */
+export function fechaCortaEnLima(instante) {
+  return fechaCorta(diaEnLima(instante));
+}
+
 /** "23 de abril" — para mostrar cumpleaños sin el año. */
 export function diaYMes(iso) {
   if (!iso) return "—";

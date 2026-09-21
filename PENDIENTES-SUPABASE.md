@@ -9,6 +9,7 @@ Ninguno borra datos.
 | Script | Para qué | Si no se corre |
 | --- | --- | --- |
 | `supabase-reparar-fechas-de-marcado.sql` | Al correr la v8 se usó el `UPDATE` opcional, que le puso a las 125 casillas tildadas la fecha de ese día. Este script les devuelve la fecha real a las 12 que dejaron rastro y deja las otras 72 en blanco | El total del mes sale bien, pero cualquier rango que no incluya el 21/9/2026 da 0, porque todas las casillas dicen ese día |
+| `supabase-migracion-v9-fecha-de-alta-en-hora-de-lima.sql` | La fecha de alta del cliente pasa a guardar su zona horaria. Arregla de una vez todas las fichas viejas | Las altas cargadas después de las 7 pm siguen apareciendo al día siguiente, y la lista y el Excel siguen sin coincidir |
 
 Las migraciones (v4 a v8) están todas corridas y comprobadas contra la base.
 

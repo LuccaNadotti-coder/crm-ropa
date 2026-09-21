@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
 import { TIENDAS } from "@/lib/peru-ubigeo";
-import { MESES, MESES_CORTOS, fechaCorta, telefonoEsValido } from "@/lib/formato";
+import { MESES, MESES_CORTOS, fechaCortaEnLima, diaEnLima, telefonoEsValido } from "@/lib/formato";
 import { enviosEntre, fechaHoyLima, ORIGEN } from "@/lib/envios";
 import { veTodasLasTiendas } from "@/lib/permisos";
 import { descargarArchivo } from "@/lib/portapapeles";
@@ -48,9 +48,9 @@ function comoIso(fecha) {
   return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
 }
 
-/** Día de un created_at (que es timestamp) en hora local, como "YYYY-MM-DD". */
+/** Día de un created_at, en hora de Lima, como "YYYY-MM-DD". */
 function diaDe(timestamp) {
-  return timestamp ? comoIso(new Date(timestamp)) : null;
+  return diaEnLima(timestamp);
 }
 
 /**
@@ -150,12 +150,8 @@ function Contenido({ perfil }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desde, hasta, rangoAlReves]);
 
-  /** "2026-08" a partir de created_at, en hora local. */
-  const claveMes = (c) => {
-    if (!c.created_at) return null;
-    const f = new Date(c.created_at);
-    return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}`;
-  };
+  /** "2026-08" a partir de created_at, en hora de Lima. */
+  const claveMes = (c) => diaDe(c.created_at)?.slice(0, 7) || null;
 
   const enAlcance = useMemo(
     () => (filtroTienda ? clientes.filter((c) => c.tienda === filtroTienda) : clientes),
@@ -323,7 +319,7 @@ function Contenido({ perfil }) {
         Nombre: c.nombre,
         DNI: c.dni_ruc || "",
         Telefono: c.telefono || "",
-        "Fecha de alta": c.created_at ? new Date(c.created_at).toLocaleDateString("es-PE") : "",
+        "Fecha de alta": diaDe(c.created_at) || "",
         Tienda: c.tienda || "",
         Asesora: c.asesora || "",
         Genero: c.genero || "",
@@ -836,7 +832,7 @@ function Contenido({ perfil }) {
                   </p>
                 </div>
                 <Insignia tono="neutro" className="shrink-0">
-                  {c.created_at ? fechaCorta(new Date(c.created_at).toISOString()) : "—"}
+                  {fechaCortaEnLima(c.created_at)}
                 </Insignia>
               </li>
             ))}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { traerTodas } from "@/lib/db";
-import { MESES, diaYMes } from "@/lib/formato";
+import { MESES, diaYMes, diaEnLima } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar } from "@/lib/permisos";
 import Marco from "@/components/Marco";
 import {
@@ -86,11 +86,12 @@ function Contenido({ perfil }) {
 
   const cumplenHoy = cumpleProximos.filter((c) => c.dias === 0).length;
 
-  const nuevosEsteMes = clientes.filter((c) => {
-    if (!c.created_at) return false;
-    const f = new Date(c.created_at);
-    return f.getFullYear() === anio && f.getMonth() + 1 === mes;
-  }).length;
+  // El mes se saca en hora de Lima, igual que en Reportes: si no, las altas
+  // cargadas después de las 7 pm del último día del mes caían en el siguiente.
+  const claveMesActual = `${anio}-${String(mes).padStart(2, "0")}`;
+  const nuevosEsteMes = clientes.filter(
+    (c) => diaEnLima(c.created_at)?.slice(0, 7) === claveMesActual
+  ).length;
 
   const porTienda = Object.entries(
     clientes.reduce((acc, c) => {
