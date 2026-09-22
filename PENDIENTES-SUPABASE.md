@@ -13,6 +13,12 @@ Ninguno borra datos.
 Las migraciones (v4 a v9) y la reparación de fechas están corridas y
 comprobadas contra la base.
 
+## Para revisar a mano
+
+| Script | Para qué |
+| --- | --- |
+| `supabase-revisar-nombres-al-reves.sql` | 55 fichas cargadas con el apellido adelante, a las que el CRM saluda "Hola Ayala" en vez de "Hola Cynthia". Trae un `update` por ficha, con el nombre completo arriba para verificar. **Es una deducción, no un dato: revisar línea por línea antes de correr.** |
+
 ## Para revisar, no cambia nada
 
 | Script | Para qué |
