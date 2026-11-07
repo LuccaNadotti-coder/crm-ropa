@@ -1,7 +1,7 @@
 -- =========================================================
 -- FICHAS CARGADAS CON EL APELLIDO ADELANTE
 --
--- El CRM saluda con la primera palabra del nombre, asi que a estas 55
+-- El CRM saluda con la primera palabra del nombre, asi que a estas 54
 -- fichas les escribe "Hola Ayala" o "Hola Gonzales" en vez del nombre. Llenar
 -- nombre_pila lo arregla: ese campo manda sobre el saludo del WhatsApp y sobre
 -- la tarjeta de cumpleanos.
@@ -13,13 +13,16 @@
 -- apellido; una que aparece seguido AL PRINCIPIO es un nombre. La firma de una
 -- ficha al reves es un nombre de pila en la tercera palabra o mas.
 --
--- REVISAR ANTES DE CORRER. Es una deduccion, no un dato, y se equivoca en
--- algunos casos: alguien con tres nombres, o apellidos que tambien son nombres
--- (ROSALES, FLORES, LEON). Arriba de cada linea esta la ficha completa y lo
--- que dice hoy. Si el nombre propuesto no es el correcto, corregi la palabra;
--- si la ficha estaba bien, borra la linea.
+-- YA REVISADO A MANO, LINEA POR LINEA. La deduccion se equivocaba en cuatro
+-- fichas y quedan corregidas abajo, cada una marcada con "REVISADA":
 --
--- Cada linea es independiente: se puede correr por partes.
+--   DOMICIANA GARRO ALVA            no estaba al reves  -> se quito el update
+--   MORALES SIMPALO JENY ELIZABETH  proponia Elizabeth   -> Jeny
+--   UGAZ TOLEDO BLANCA FLOR         proponia Flor        -> Blanca
+--   VILELA CRUZ YESSICA ISABEL      proponia Isabel      -> Yessica
+--
+-- Quedan 54 updates. Se puede correr entero de una vez, o por partes: cada
+-- linea es independiente. Al final hay un select para comprobar como queda.
 -- =========================================================
 
 -- ALAMA CARREÑO ELIZABETH KARINA   ·   Los Olivos SFIDA
@@ -83,8 +86,9 @@ update clientes set nombre_pila = 'Sussy' where nombre = 'DE LA CRUZ LLANCARI SU
 update clientes set nombre_pila = 'Doris' where nombre = 'DIAZ TORRES DORIS JONHNI';
 
 -- DOMICIANA GARRO ALVA   ·   Chimu SFIDA
---    hoy le dice "Hola Domiciana"
-update clientes set nombre_pila = 'Alva' where nombre = 'DOMICIANA GARRO ALVA';
+--    hoy le dice "Hola Domiciana"  ->  REVISADA: esta bien, no se toca.
+--    DOMICIANA es el nombre y GARRO ALVA los apellidos. La deduccion habia
+--    propuesto 'Alva', que es apellido: le habria escrito "Hola Alva".
 
 -- ENCISO CACERES ALEJANDRA   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Enciso"
@@ -152,7 +156,8 @@ update clientes set nombre_pila = 'Cecilia' where nombre = 'MIYOSHI ARIAS CECILI
 
 -- MORALES SIMPALO JENY ELIZABETH   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Morales"
-update clientes set nombre_pila = 'Elizabeth' where nombre = 'MORALES SIMPALO JENY ELIZABETH';
+--    REVISADA: la deduccion proponia 'Elizabeth' (segundo nombre); va JENY.
+update clientes set nombre_pila = 'Jeny' where nombre = 'MORALES SIMPALO JENY ELIZABETH';
 
 -- ORTEGA CADILLO NANCY CLAUDIA   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Ortega"
@@ -216,7 +221,8 @@ update clientes set nombre_pila = 'Martha' where nombre = 'SURCO ARMACTA MARTHA 
 
 -- UGAZ TOLEDO BLANCA FLOR   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Ugaz"
-update clientes set nombre_pila = 'Flor' where nombre = 'UGAZ TOLEDO BLANCA FLOR';
+--    REVISADA: la deduccion proponia 'Flor' (segundo nombre); va BLANCA.
+update clientes set nombre_pila = 'Blanca' where nombre = 'UGAZ TOLEDO BLANCA FLOR';
 
 -- VELASCO LOAYZA DE SAAVEDRA MARITZA   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Velasco"
@@ -232,7 +238,8 @@ update clientes set nombre_pila = 'Ana' where nombre = 'VIDAL ESPINOZA ANA CECIL
 
 -- VILELA CRUZ YESSICA ISABEL   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Vilela"
-update clientes set nombre_pila = 'Isabel' where nombre = 'VILELA CRUZ YESSICA ISABEL';
+--    REVISADA: la deduccion proponia 'Isabel' (segundo nombre); va YESSICA.
+update clientes set nombre_pila = 'Yessica' where nombre = 'VILELA CRUZ YESSICA ISABEL';
 
 -- VILLANUEVA BRAVO DE VIZA SOFIA IRENE   ·   Los Olivos SFIDA
 --    hoy le dice "Hola Villanueva"
