@@ -7,7 +7,7 @@ import { PERU, DEPARTAMENTOS, TIENDAS } from "@/lib/peru-ubigeo";
 import {
   paraBuscar, normalizarTexto, normalizarOpcional, soloNumeros, soloLetras,
   fechaCorta, diaYMes, edadDesde, telefonoLegible, enlaceWhatsApp, telefonoEsValido,
-  nombrePila, MESES, MESES_CORTOS,
+  nombrePila, nombreDeTrato, MESES, MESES_CORTOS,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEliminar, puedeEnviarWhatsApp } from "@/lib/permisos";
 import { BotonWhatsApp } from "@/components/ModoWhatsApp";
@@ -25,7 +25,7 @@ const TIPOS = ["Minorista", "Mayorista"];
 const ESTILOS = ["Clásico", "Casual", "Elegante", "Ejecutivo", "Romántico"];
 const POR_PAGINA = 40;
 
-const saludo = (c) => `Hola ${c.nombre}, te saludamos de SFIDA.`;
+const saludo = (c) => `Hola ${nombreDeTrato(c) || c.nombre}, te saludamos de SFIDA.`;
 
 const formVacio = {
   nombre: "", nombre_pila: "", dni_ruc: "", telefono: "", fecha_nacimiento: "", genero: "",

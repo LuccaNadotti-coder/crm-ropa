@@ -7,6 +7,7 @@ import { registrarEnvio, ORIGEN } from "@/lib/envios";
 import { TIENDAS } from "@/lib/peru-ubigeo";
 import {
   MESES, paraBuscar, telefonoLegible, enlaceWhatsApp, haceCuanto, telefonoEsValido,
+  nombreDeTrato,
 } from "@/lib/formato";
 import { veTodasLasTiendas, puedeEditar, puedeEnviarWhatsApp } from "@/lib/permisos";
 import { BotonWhatsApp } from "@/components/ModoWhatsApp";
@@ -17,8 +18,10 @@ import {
   IconoBuscar, IconoWhatsApp, IconoCatalogo, IconoX,
 } from "@/components/ui";
 
+// Se saluda por el nombre de pila, igual que en cumpleaños y campañas: "Hola
+// ALBINA GOYA PAYANO CHAGUA" se lee como un formulario, no como un mensaje.
 const textoCatalogo = (c) =>
-  `Hola ${c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`;
+  `Hola ${nombreDeTrato(c) || c.nombre}, te compartimos nuestro nuevo catálogo con las últimas novedades y promociones. ¡Esperamos que te encante! 🛍️`;
 
 export default function PaginaCatalogos() {
   return (
