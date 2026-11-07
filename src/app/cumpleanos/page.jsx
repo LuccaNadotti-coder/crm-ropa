@@ -34,12 +34,12 @@ const RANGOS = [
  *
  * "Género" en la ficha es Dama, Caballero o Ambos, y puede estar vacío. Ambos
  * y vacío caen en una frase sin género en vez de adivinar: es preferible un
- * "gracias por su preferencia" a tratar de clienta a un señor.
+ * "gracias por tu preferencia" a tratar de clienta a un señor.
  */
 function agradecimiento(genero) {
   if (genero === "Dama") return "como agradecimiento por ser nuestra clienta";
   if (genero === "Caballero") return "como agradecimiento por ser nuestro cliente";
-  return "como agradecimiento por su preferencia";
+  return "como agradecimiento por tu preferencia";
 }
 
 export default function PaginaCumpleanos() {
@@ -227,13 +227,13 @@ function TarjetaCumple({ cliente: c, anio, verTodo, puedeMarcar, mandarWhatsApp,
   const texto = esHoy
     ? `Hola ${pila}, ${saludoDelDia()}.
 
-Desde SFIDA queremos enviarle un saludo muy especial por su cumpleaños 🎉
+Desde SFIDA queremos enviarte un saludo muy especial por tu cumpleaños 🎉
 Gracias por formar parte de nuestra familia y por confiar siempre en nosotros.
 ¡Que este nuevo año de vida esté lleno de alegría y éxitos! ✨`
     : `Hola ${pila}, ${saludoDelDia()}.
 
-En Sfida estamos celebrando por adelantado su cumpleaños 🎉 y queremos regalarle un 15% de promoción ${agradecimiento(c.genero)}.
-¡Esperamos que lo disfrute y tenga un excelente día!`;
+En Sfida estamos celebrando por adelantado tu cumpleaños 🎉 y queremos regalarte un 15% de promoción ${agradecimiento(c.genero)}.
+¡Esperamos que lo disfrutes y tengas un excelente día!`;
 
   /* ------------------------------------------------------------ Tarjeta */
 
